@@ -124,7 +124,7 @@ class FinalAttemptTests(unittest.TestCase):
         self.assertEqual(runner.attempt_limit('E026', limits), 4)
         self.assertEqual(runner.attempt_limit('E001', runner.attempt_limits({'run_id': 'new-run'})), 4)
 
-    def test_only_approved_case_gets_fifth_attempt_and_never_a_sixth(self):
+    def test_attempt_extension_cannot_migrate_v6_checkpoint(self):
         data = ds.GoldenDataset('offline', '1.1', '', [
             ds.EvalCase(f'E{i:03}', 'U-001', f'question {i}', 'authorized_factual', 'answer', '') for i in range(1, 4)])
         with tempfile.TemporaryDirectory() as folder, \
@@ -150,16 +150,11 @@ class FinalAttemptTests(unittest.TestCase):
             with patch.object(runner, 'attempt_limits', return_value={'E001': 5}), \
                  patch.object(runner, 'compatible_groq_checkpoint', return_value=True), \
                  patch.object(evaluator, 'run_case', side_effect=failed) as execute:
-                result = runner.run(**args, resume=True)
-                self.assertEqual([call.args[0].eval_id for call in execute.call_args_list], ['E001'])
-                self.assertEqual(result['run_id'], previous['run_id'])
-                self.assertEqual(result['response_log'], previous['response_log'])
-                self.assertEqual(len(result['results'][0]['attempts']), 5)
-                self.assertEqual(result['results'][0]['attempts'][:4], previous['results'][0]['attempts'])
-                self.assertEqual(result['results'][1:], previous['results'][1:])
-                execute.reset_mock()
-                runner.run(**args, resume=True)
+                before = path.read_bytes()
+                with self.assertRaises(ds.DatasetError):
+                    runner.run(**args, resume=True)
                 execute.assert_not_called()
+                self.assertEqual(path.read_bytes(), before)
 
 
 if __name__ == '__main__':

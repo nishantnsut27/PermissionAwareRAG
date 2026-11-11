@@ -13,7 +13,8 @@ from access_control.src.users import USERS, User, get_user
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = PACKAGE_ROOT.parent
-GOLDEN_DATASET_FILE = PACKAGE_ROOT / "golden_dataset.json"
+V11_DATASET_FILE = PACKAGE_ROOT / "golden_dataset.json"
+GOLDEN_DATASET_FILE = PACKAGE_ROOT / "golden_dataset_v12.json"
 RESULTS_FILE = PACKAGE_ROOT / "results.json"
 DOCUMENTS_FILE = (PROJECT_ROOT / "ingestion" / "processed" / "documents"
                   / "documents.jsonl")

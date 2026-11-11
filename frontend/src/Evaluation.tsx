@@ -67,14 +67,15 @@ function Scorecards({ m }: { m: Measurements }) {
       <Meter value={value?.value ?? null} />
     </section>)}</div>;
 }
-function Results({ m }: { m: Measurements }) {
+function Results({ m, separate }: { m: Measurements; separate: boolean }) {
   const r = m.reliability;
   return <>
     <div className="eval-section-label"><span className="eyebrow">Results by group</span><h2>Evaluation matrix</h2><p className="caption">See where the system performs well and which groups need attention.</p></div>
     <Table name="Behavioral categories" rows={m.categories} total={r} /><Table name="Capabilities" rows={m.capabilities} />
     <div className="eval-section-label"><span className="eyebrow">A closer look</span><h2>Quality and reliability</h2><p className="caption">Detailed measurements from retrieval through the final response.</p></div>
     <div className="eval-columns"><section className="panel"><h2>Retrieval and context</h2><MetricList values={{ ...m.retrieval, ...m.context }} /></section>
-      <section className="panel"><h2>Answer quality</h2><MetricList values={m.quality} /><p className="caption">Per-case thresholds: recall ≥50%, groundedness ≥70%, correctness ≥60%, relevancy ≥60%. Security failures always fail.</p></section></div>
+      <section className="panel"><h2>Answer quality</h2><MetricList values={m.quality} /><p className="caption">{separate ? 'Answer/security thresholds: groundedness ≥70%, correctness ≥60%, relevancy ≥60%. Recall@5 ≥50% is a separate retrieval diagnostic.' : 'Historical combined thresholds: recall ≥50%, groundedness ≥70%, correctness ≥60%, relevancy ≥60%.'} Security failures always fail.</p></section></div>
+    {separate && <section className="panel"><h2>Retrieval diagnostics</h2><p>{m.retrieval_diagnostics?.pass ?? 0} passed · {m.retrieval_diagnostics?.fail ?? 0} failed · {m.retrieval_diagnostics?.not_applicable ?? 0} not applicable · {m.retrieval_diagnostics?.not_measured ?? 0} not measured</p><p className="caption">These results do not change the answer/security status.</p></section>}
     <section className="panel eval-security"><h2>Permissions and behavior</h2><MetricList values={m.security} /><p className="caption">Exposure rates count cases with unauthorized material at each stage. Lower exposure is better.</p></section>
     <div className="eval-columns"><section className="panel"><h2>Reliability detail</h2><dl className="metric-list">
       {([['Partial responses', r.partial], ['Failed pipelines', r.pipeline_failed], ['Unjudged cases', r.unjudged], ['Dependency blocked', r.dependency_blocked], ['Pending cases', r.pending]] as const).map(([label, n]) => <div key={label}><dt>{label}</dt><dd>{n}/{r.selected}</dd></div>)}
@@ -93,9 +94,10 @@ function OutcomeSummary({ data }: { data: EvaluationSummary & { measurements: Me
   const outcomes = [['passed', 'Passed'], ['failed', 'Failed'], ['errors', 'Errors'], ['pending', 'Pending']] as const;
   return <section className={`panel eval-outcomes ${state.tone}`} aria-label="Evaluation results summary">
     <div className="eval-outcome-heading"><div><span className={`run-status ${state.tone}`}><span aria-hidden="true" />{state.label}</span>
-      <h2>{state.heading}</h2><p>{r.recorded} of {r.selected} cases recorded.</p></div>
-      {data.generated_at && <p className="caption">{state.finished ? 'Completed' : 'Last saved'}<time dateTime={data.generated_at}>{savedTime(data.generated_at)}</time></p>}
+      <h2>{state.heading}</h2><p>{data.status_semantics === 'answer_security' ? 'Answer/security results' : 'Historical combined results'} · {r.recorded} of {r.selected} cases recorded.</p></div>
+      {data.generated_at && <p className="caption">{data.report_kind === 'latest_by_case' ? 'Snapshot saved' : state.finished ? 'Completed' : 'Last saved'}<time dateTime={data.generated_at}>{savedTime(data.generated_at)}</time></p>}
     </div>
+    {data.report_kind === 'latest_by_case' && <p className="caption">Latest recorded outcomes across {data.source_run_count} saved runs. Cases retain the answers and conversation context from their original runs. This is a combined snapshot, not a new full-suite evaluation.</p>}
     <dl className="eval-outcome-counts"><div><dt>Pass rate</dt><dd>{r.recorded ? `${(r.passed / r.recorded * 100).toFixed(1)}%` : 'Not measured'}</dd></div>
       {outcomes.map(([key, label]) => <div className={key} key={key}><dt>{label}</dt><dd>{r[key]}</dd></div>)}
     </dl>
@@ -123,7 +125,7 @@ export default function Evaluation() {
     {data?.has_results && data.measurements && <><Scorecards m={data.measurements} /><OutcomeSummary data={{ ...data, measurements: data.measurements }} /></>}
     <div className="panel eval-controls"><div className="eval-toolbar"><label>Saved evaluation run<select value={report} onChange={event => setParams(previous => { const next = new URLSearchParams(previous); event.target.value ? next.set('report', event.target.value) : next.delete('report'); return next; })}>
       <option value="">Latest evaluation</option>{report && !data?.available_reports?.some(r => r.report_id === report) && <option value={report}>{report}</option>}
-      {data?.available_reports?.map(row => <option key={row.report_id} value={row.report_id}>{savedTime(row.started_at || row.generated_at || row.report_id)} · {row.report_id === data.report_id ? state?.label : row.status || 'Legacy'} · v{row.dataset_version || '?'} · {row.selected_cases ?? row.total_cases ?? '?'} cases</option>)}
+      {data?.available_reports?.map(row => <option key={row.report_id} value={row.report_id}>{row.report_kind === 'latest_by_case' ? 'Latest results by case · ' : ''}{savedTime(row.started_at || row.generated_at || row.report_id)} · {row.report_id === data.report_id ? state?.label : row.status || 'Legacy'} · v{row.dataset_version || '?'} · {row.selected_cases ?? row.total_cases ?? '?'} cases</option>)}
     </select></label><div className="eval-buttons"><button className="primary" onClick={() => void query.refetch()} disabled={query.isFetching}><Icon name="refresh" />Refresh saved results</button>
       {data?.has_results && <button onClick={() => download(data)}><Icon name="download" />Download summary JSON</button>}</div></div>
       <p className="caption eval-refresh-note"><span className="dot" aria-hidden="true" />{report ? 'Historical selection stays fixed until you choose Latest evaluation.' : 'Latest evaluation refreshes every 30 seconds while this page is visible.'}</p></div>
@@ -131,10 +133,11 @@ export default function Evaluation() {
     {query.error && <div className="notice error" role="alert">{query.error.message}{data && ' Showing previously loaded data.'}</div>}
     {data?.has_results ? <>
       <section className="eval-run" aria-label="Selected evaluation run"><div className="eval-run-title"><span className={`run-status ${state?.tone}`}><span aria-hidden="true" />{state?.label}</span><strong>{data.run_id || data.report_id || '(checkpoint)'}</strong><span className="eval-version">Dataset {data.dataset_version || 'not recorded'}</span></div>
-        <dl className="eval-run-meta"><div><dt>Cases recorded</dt><dd>{data.total_cases ?? 0} <span>/ {data.selected_cases ?? data.total_cases ?? '?'}</span></dd></div><div><dt>Model</dt><dd>{data.model || 'Not recorded'}</dd></div><div><dt>Started</dt><dd>{savedTime(data.started_at || data.generated_at || 'Not recorded')}</dd></div></dl>
+        <dl className="eval-run-meta"><div><dt>Cases recorded</dt><dd>{data.total_cases ?? 0} <span>/ {data.selected_cases ?? data.total_cases ?? '?'}</span></dd></div><div><dt>Model</dt><dd>{data.model || 'Not recorded'}</dd></div><div><dt>{data.report_kind === 'latest_by_case' ? 'Snapshot saved' : 'Started'}</dt><dd>{savedTime(data.started_at || data.generated_at || 'Not recorded')}</dd></div></dl>
         {(!data.status || data.status === 'Legacy') && <p className="notice">Legacy report: some measurements or completion metadata may be unavailable.</p>}
+        <p className="caption">Scoring policy: {data.scoring_policy || 'historical_combined'}. {data.status_semantics !== 'answer_security' && 'Historical statuses are preserved as recorded; scores have not been reinterpreted.'}</p>
       </section>
-      {data.measurements ? <Results m={data.measurements} /> : <div className="panel"><p>Detailed aggregate metrics: Not measured in this legacy summary.</p></div>}
+      {data.measurements ? <Results m={data.measurements} separate={data.status_semantics === 'answer_security'} /> : <div className="panel"><p>Detailed aggregate metrics: Not measured in this legacy summary.</p></div>}
       {data.cohorts && <Cohorts data={data.cohorts} />}
     </> : data && <p className="panel">No evaluation results are available.</p>}
     <p className="caption eval-privacy"><Icon name="shield" /><span>Refreshing reads saved reports only. Downloads contain aggregate metrics; individual questions, answers and evidence remain private.</span></p>

@@ -4,6 +4,7 @@ Run: python -B scripts/run_offline_suite.py security_tests.portfolio_answer_scop
 These fixtures exercise the contracts and failure boundaries, not model quality.
 """
 from __future__ import annotations
+from security_tests.remediation_helpers import plan_response, review_passthrough
 
 import json
 import unittest
@@ -31,6 +32,7 @@ class PortfolioTests(unittest.TestCase):
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(service.verification, "verify", side_effect=review_passthrough))
         for target in ("socket.socket.connect", "socket.create_connection",
                        "requests.sessions.Session.request"):
             self.stack.enter_context(patch(target, side_effect=AssertionError("network forbidden")))
@@ -72,7 +74,7 @@ class PortfolioTests(unittest.TestCase):
 
     def model(self, messages, **kwargs):
         if kwargs.get("response_format"):
-            return json.dumps({"intent": self.classifier_intent}), {"finish_reason": "stop"}
+            return plan_response(messages, self.classifier_intent)
         self.last_messages = messages
         body = messages[1]["content"].split("<<<BEGIN CONTEXT>>>\n", 1)[1].split("\n<<<END CONTEXT>>>", 1)[0]
         text = self.model_answer
@@ -225,7 +227,7 @@ class PortfolioTests(unittest.TestCase):
         self.assertEqual(response.outcome, "refusal")
         self.assertIn("S001: Information unavailable", response.answer)
         self.assertIn("S003: Information unavailable", response.answer)
-        self.generate.assert_not_called()
+        self.assertTrue(all(call.kwargs.get("response_format") for call in self.generate.call_args_list))
 
     def test_mixed_seller_passages_and_labels_are_omitted_without_rewriting(self):
         bad = passage("S001", "Aurelia priority; StrideOne has Gold tier.")

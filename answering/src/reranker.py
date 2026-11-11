@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import requests
 
@@ -29,6 +29,11 @@ class RerankOutcome:
     items: list[tuple[object, float | None]]
     applied: bool
     error: str | None = None
+    scored_items: list[tuple[object, float | None]] | None = None
+
+    def __post_init__(self):
+        if self.scored_items is None:
+            self.scored_items = list(self.items)
 
 
 def evidence_windows(text: str, max_chars: int = MAX_DOC_CHARS,
@@ -129,6 +134,5 @@ def _rank_response(chunks, body, window_to_chunk, documents, threshold):
 
     scored = [(chunks[index], score) for index, score in scores_by_chunk.items()]
     scored.sort(key=lambda pair: pair[1], reverse=True)
-    if threshold is not None:
-        scored = [pair for pair in scored if pair[1] >= threshold]
-    return RerankOutcome(items=scored, applied=True)
+    selected = scored if threshold is None else [pair for pair in scored if pair[1] >= threshold]
+    return RerankOutcome(items=selected, applied=True, scored_items=scored)

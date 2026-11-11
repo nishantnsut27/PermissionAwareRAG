@@ -27,6 +27,9 @@ def api_server():
 
 class ApiBoundaryTests(unittest.TestCase):
     def setUp(self):
+        budgets = patch.dict(api._principal_budgets, {}, clear=True)
+        budgets.start()
+        self.addCleanup(budgets.stop)
         self.demo = patch.object(config, "API_DEMO_MODE", False)
         self.demo.start()
 

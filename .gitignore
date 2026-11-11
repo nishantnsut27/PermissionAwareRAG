@@ -51,6 +51,7 @@ sofar.md
 access_control/reports/*.jsonl*
 node_modules/
 frontend/dist/
+frontend/.vite/
 frontend/*.tsbuildinfo
 frontend/.env.local
 frontend/playwright-report/

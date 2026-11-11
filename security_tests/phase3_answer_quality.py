@@ -1,4 +1,5 @@
 from __future__ import annotations
+from security_tests.remediation_helpers import plan_response, review_passthrough
 
 import json
 import math
@@ -179,7 +180,7 @@ class RerankerEvidenceTests(unittest.TestCase):
                       max_context_tokens=500, max_context_chars=5000)
         with patch.object(service.conversation, "retrieval_query",
                           return_value="resolved question with prior topic") as resolver, \
-             patch.object(service.answer_scope, "is_portfolio", return_value=False), \
+             patch.object(service.llm, "generate", side_effect=plan_response), \
              patch.object(service, "authorized_retrieve", side_effect=retrieve), \
              patch.object(service.reranker, "rerank", side_effect=rank):
             service._prepare(Principal(user, "test"), "Which one?",
@@ -191,6 +192,11 @@ class RerankerEvidenceTests(unittest.TestCase):
 
 
 class ContextAndCitationTests(unittest.TestCase):
+    def setUp(self):
+        reviewer = patch.object(service.verification, "verify", side_effect=review_passthrough)
+        reviewer.start()
+        self.addCleanup(reviewer.stop)
+
     def test_omitted_chunk_pages_do_not_appear_in_citations(self):
         cfg = replace(answer_config.DEFAULT_ANSWERING,
                       max_context_tokens=100, max_context_chars=5000)
@@ -201,7 +207,7 @@ class ContextAndCitationTests(unittest.TestCase):
         self.assertEqual([source.pages for source in sources], [[1]])
         self.assertEqual([source.chunk_ids for source in sources], [["c1"]])
 
-    def test_oversized_first_chunk_keeps_tail_inside_strict_budget(self):
+    def test_oversized_complete_chunk_is_omitted_inside_strict_budget(self):
         cfg = replace(answer_config.DEFAULT_ANSWERING,
                       max_context_tokens=180, max_context_chars=5000)
         passage = chunk(text="HEAD-ONLY-FACT " + ("filler " * 300) + " TAIL-ONLY-FACT",
@@ -212,10 +218,8 @@ class ContextAndCitationTests(unittest.TestCase):
             {"page": 2, "start": split, "end": len(passage.text)}]
         text, sources = context.build([(passage, 0.8)], cfg)
         self.assertLessEqual(context.count_tokens(text), cfg.max_context_tokens)
-        self.assertIn("HEAD-ONLY-FACT", text)
-        self.assertIn("TAIL-ONLY-FACT", text)
-        self.assertEqual(sources[0].pages, [1, 2])
-        self.assertEqual(len(sources[0].evidence_ids), 1)
+        self.assertEqual(text, "")
+        self.assertEqual(sources, [])
 
     def test_duplicate_overlapping_spans_keep_provenance(self):
         cfg = replace(answer_config.DEFAULT_ANSWERING,
@@ -225,11 +229,11 @@ class ContextAndCitationTests(unittest.TestCase):
             (chunk("c1", text_value, "D1", [4]), 0.9),
             (chunk("c2", text_value, "D1", [5]), 0.8),
         ], cfg)
-        self.assertEqual(text.count(text_value), 1)
+        self.assertEqual(text.count(text_value), 2)
         self.assertEqual(sources[0].chunk_ids, ["c1", "c2"])
-        self.assertEqual(sources[0].pages, [4])
+        self.assertEqual(sources[0].pages, [4, 5])
 
-    def test_partial_overlap_is_removed_and_evidence_ids_are_stable(self):
+    def test_complete_overlapping_chunks_preserve_text_and_stable_evidence_ids(self):
         cfg = replace(answer_config.DEFAULT_ANSWERING,
                       max_context_tokens=1000, max_context_chars=5000)
         shared = "Shared passage text " + ("detail " * 8)
@@ -237,7 +241,7 @@ class ContextAndCitationTests(unittest.TestCase):
         second = chunk("c2", shared + " Tail-only fact.", "D1", [2])
         first_context, first_sources = context.build([(first, 0.9), (second, 0.8)], cfg)
         _, again_sources = context.build([(first, 0.9), (second, 0.8)], cfg)
-        self.assertEqual(first_context.count("Shared passage text"), 1)
+        self.assertEqual(first_context.count("Shared passage text"), 2)
         self.assertIn("Tail-only fact.", first_context)
         self.assertEqual(first_sources[0].chunk_ids, ["c1", "c2"])
         self.assertEqual(first_sources[0].pages, [1, 2])
@@ -270,6 +274,11 @@ class ContextAndCitationTests(unittest.TestCase):
 
 
 class CompletionContractTests(unittest.TestCase):
+    def setUp(self):
+        reviewer = patch.object(service.verification, "verify", side_effect=review_passthrough)
+        reviewer.start()
+        self.addCleanup(reviewer.stop)
+
     @staticmethod
     def _response(events):
         response = MagicMock()
@@ -362,9 +371,8 @@ class CompletionContractTests(unittest.TestCase):
         self.assertEqual(terminal["answer"], buffered.answer)
         self.assertEqual(terminal["sources"], buffered.to_dict()["sources"])
 
-        partial = service._finalize(prepared, "Text cut off.", "m", "length")
-        self.assertEqual(partial.outcome, "partial")
-        self.assertFalse(partial.to_dict()["completed"])
+        with self.assertRaises(service.AnswerUnavailableError):
+            service._finalize(prepared, "Text cut off.", "m", "length")
 
     def test_stream_provider_failure_has_explicit_error_outcome(self):
         user = get_user("U-001")

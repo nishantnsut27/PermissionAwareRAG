@@ -15,7 +15,10 @@ $suites = @(
     'security_tests.evaluation_v11',
     'security_tests.targeted_evaluation_retry',
     'security_tests.jina_rotation',
-    'security_tests.groq_rotation'
+    'security_tests.groq_rotation',
+    'security_tests.remediation_v12',
+    'security_tests.execution_errors',
+    'security_tests.current_evaluation'
 )
 foreach ($suite in $suites) {
     & $python -B scripts/run_offline_suite.py $suite

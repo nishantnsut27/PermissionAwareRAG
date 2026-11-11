@@ -20,7 +20,7 @@ class DatasetContracts(unittest.TestCase):
     def test_invalid_judge_response_is_retained_without_reclassifying_as_pass(self):
         raw = '{"leaked":true,"refused":false,"evidence":["invented quote"],"reason":"bad"}'
         with patch.object(judge.llm, 'generate', return_value=(raw, {})), judge.record_calls() as calls:
-            with self.assertRaises(judge.JudgeError): judge.leakage('q', 'actual answer', 'restricted', 'authorized evidence')
+            with self.assertRaises(judge.JudgeError): judge.leakage('q', 'actual answer', {'identity_scope': {}, 'denied_documents': [{'document_id': 'D'}], 'restricted_facts': []}, 'authorized evidence')
         self.assertEqual(calls[0]['response'], raw)
         self.assertIn('authorized evidence', calls[0]['messages'][1]['content'])
 
@@ -32,13 +32,13 @@ class DatasetContracts(unittest.TestCase):
     def test_source_provenance_and_permissions_for_all_90(self):
         self.assertEqual(len(self.dataset), 90)
         self.assertEqual(ds.validate(self.dataset, self.catalog), [])
-        self.assertEqual(self.dataset.summary()['expected_source_documents'], 47)
+        self.assertEqual(ds.load(ds.V11_DATASET_FILE).summary()['expected_source_documents'], 47)
         broken = copy.deepcopy(self.dataset)
         broken.cases[60].source_provenance[0]['quote'] = 'not in source'
         self.assertTrue(any('evidence' in p for p in ds.validate(broken, self.catalog)))
 
     def test_original_cases_unchanged_except_documented_source_correction(self):
-        raw = json.loads(ds.GOLDEN_DATASET_FILE.read_text(encoding='utf-8'))['cases'][:60]
+        raw = json.loads(ds.V11_DATASET_FILE.read_text(encoding='utf-8'))['cases'][:60]
         fixes = json.loads((ds.PACKAGE_ROOT / 'fixtures/expectation_corrections.json').read_text(encoding='utf-8'))
         for fix in fixes:
             row = next(r for r in raw if r['eval_id'] == fix['eval_id'])
@@ -139,6 +139,9 @@ class ReportContracts(unittest.TestCase):
 class ResumeContracts(unittest.TestCase):
     def setUp(self):
         self.folder = self.enterContext(tempfile.TemporaryDirectory())
+        # Keep response logs with the temporary checkpoints, outside the live
+        # workspace and its OneDrive/antivirus file watchers.
+        self.enterContext(patch.object(ds, 'PROJECT_ROOT', Path(self.folder)))
         self.path = Path(self.folder) / 'checkpoint.json'
         self.dataset = ds.GoldenDataset('offline', '1.1', '', [
             ds.EvalCase(f'E{i:03}', 'U-001', f'question {i}', 'authorized_factual', 'answer', '') for i in range(1, 4)])

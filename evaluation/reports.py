@@ -93,6 +93,11 @@ def descriptor(document):
     dataset = document.get("dataset") or {}
     selected = document.get("selected_ids") or [r["eval_id"] for r in document["results"]]
     return {"run_id": document.get("run_id"), "started_at": document.get("started_at"),
+            "report_kind": "latest_by_case" if document.get("report_kind") == "latest_by_case" else "run",
+            "source_run_count": len(document.get("snapshot_sources") or []) if document.get("report_kind") == "latest_by_case" else 1,
+            "scoring_policy": ("answer_security_v6_retrieval_diagnostic" if type(version) is int and version >= 6
+                               else "historical_combined"),
+            "status_semantics": "answer_security" if type(version) is int and version >= 6 else "historical_combined",
             "generated_at": document.get("generated_at"), "dataset_version": dataset.get("version"),
             "selected_cases": len(selected), "total_cases": len(document["results"]),
             "status": "Legacy" if legacy else "Complete" if document.get("selection_complete") is True else "Incomplete"}
@@ -127,7 +132,7 @@ def public_payload(report=None):
     available = list_reports()
     selected = report if report is not None else available[0]["report_id"] if available else None
     document = load(selected) if selected else None
-    fields = ("report_id", "run_id", "started_at", "generated_at", "status", "dataset_version", "selected_cases", "total_cases")
+    fields = ("report_id", "run_id", "started_at", "generated_at", "status", "dataset_version", "selected_cases", "total_cases", "scoring_policy", "status_semantics", "report_kind", "source_run_count")
     result = {"has_results": document is not None,
               "available_reports": [{k: r.get(k) for k in fields} for r in available]}
     if document is not None:

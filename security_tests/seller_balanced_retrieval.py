@@ -4,6 +4,7 @@ Run: python -B -m security_tests.seller_balanced_retrieval
 All networking and the audit sink are blocked; no index data is written.
 """
 from __future__ import annotations
+from security_tests.remediation_helpers import plan_response, review_passthrough
 
 import json
 import unittest
@@ -42,6 +43,7 @@ class BalancedPipelineTests(unittest.TestCase):
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(service.verification, "verify", side_effect=review_passthrough))
         for target in ("socket.socket.connect", "socket.create_connection",
                        "requests.sessions.Session.request"):
             self.stack.enter_context(patch(target, side_effect=AssertionError("network forbidden")))
@@ -81,7 +83,7 @@ class BalancedPipelineTests(unittest.TestCase):
 
     def grounded_answer(self, messages, **kwargs):
         if kwargs.get("response_format"):
-            return '{"intent": "other"}', {"finish_reason": "stop"}
+            return plan_response(messages)
         # This fixture checks the generation contract, not model quality.
         self.assertIn("Do not abstain from supported parts", messages[0]["content"])
         body = messages[1]["content"].split("<<<BEGIN CONTEXT>>>\n", 1)[1].split("\n<<<END CONTEXT>>>", 1)[0]
@@ -153,7 +155,7 @@ class BalancedPipelineTests(unittest.TestCase):
         response = self.answer(seller_filter=["S004"])
         self.assertEqual(response.outcome, "refusal")
         self.resolve.assert_not_called()
-        self.generate.assert_not_called()
+        self.assertTrue(all(call.kwargs.get("response_format") for call in self.generate.call_args_list))
 
     def test_ui_scope_fields_rejected_and_body_identity_does_not_replace_principal(self):
         self.assertFalse(api._validate_payload({"query": QUESTION, "seller_scope": ["*"]}, False))
@@ -233,7 +235,7 @@ class BalancedPipelineTests(unittest.TestCase):
         self.corpus = []
         response = self.answer()
         self.assertEqual(response.outcome, "refusal")
-        self.generate.assert_not_called()
+        self.assertTrue(all(call.kwargs.get("response_format") for call in self.generate.call_args_list))
         self.rank.assert_not_called()
 
     def test_post_retrieval_check_removes_denied_chunks_before_reranking(self):
@@ -245,7 +247,7 @@ class BalancedPipelineTests(unittest.TestCase):
         self.assertEqual(response.outcome, "refusal")
         self.assertGreater(response.withheld, 0)
         self.rank.assert_not_called()
-        self.generate.assert_not_called()
+        self.assertTrue(all(call.kwargs.get("response_format") for call in self.generate.call_args_list))
 
     def test_authorized_chunk_from_wrong_partition_is_dropped(self):
         self.dense.side_effect = None
@@ -290,22 +292,19 @@ class BalancedPipelineTests(unittest.TestCase):
         self.assertFalse(response.reranked)
         self.assertEqual({source["seller_id"] for source in response.sources}, {"S001", "S003"})
 
-    def test_non_portfolio_questions_keep_existing_global_path(self):
-        safe = passage("S001")
+    def test_named_questions_narrow_and_policy_uses_organization_path(self):
+        for question, sellers in (("Compare S001 and S003 priorities.", ["S001", "S003"]),
+                                  ("What are S001 priorities?", ["S001"])):
+            prepared, refusal = self.prepare(question)
+            self.assertIsNone(refusal)
+            self.assertEqual(prepared.coverage_sellers, sellers)
+        self.global_search.assert_not_called()
+        safe = passage("Organization-wide")
         self.global_search.return_value = SimpleNamespace(chunks=[safe], withheld_count=0, stage_trace={})
-        cases = [("global", "Compare S001 and S003 priorities.", None),
-                 ("seller_balanced", "What are S001 priorities?", None),
-                 ("seller_balanced", "What is the settlement policy?", None)]
-        for mode, question, seller_filter in cases:
-            with self.subTest(mode=mode, question=question, filter=seller_filter):
-                cfg = replace(self.cfg, multi_seller_retrieval=mode)
-                prepared, refusal = service._prepare(self.principal, question, None,
-                                                    seller_filter, None, "test", cfg)
-                self.assertIsNone(refusal)
-                self.assertEqual(prepared.coverage_sellers, [])
-                self.assertEqual(self.global_search.call_args.kwargs["top_k"], cfg.candidate_pool)
-                self.assertEqual(self.global_search.call_args.kwargs["requested_sellers"], seller_filter)
-        self.resolve.assert_not_called()
+        prepared, refusal = self.prepare("What is the settlement policy?")
+        self.assertIsNone(refusal)
+        self.assertEqual(prepared.coverage_sellers, [])
+        self.assertTrue(self.global_search.call_args.kwargs["organization_only"])
 
     def test_portfolio_scoping_is_mandatory_in_both_configurations(self):
         for mode, seller_filter in (("global", None), ("seller_balanced", ["S001"])):
@@ -347,10 +346,10 @@ class BalancedPipelineTests(unittest.TestCase):
         cfg = replace(self.cfg, max_context_tokens=600, max_context_chars=500)
         packed, sources = context.build_balanced([(chunk, chunk.relevance) for chunk in self.corpus],
                                                 ["S001", "S003"], cfg)
-        self.assertEqual({source.seller_id for source in sources}, {"S001", "S003"})
+        self.assertEqual({source.seller_id for source in sources}, {"S003"})
         self.assertIn("S003 priority", packed)
-        self.assertIn("HEAD-FACT", packed)
-        self.assertIn("TAIL-FACT", packed)
+        self.assertNotIn("HEAD-FACT", packed)
+        self.assertNotIn("TAIL-FACT", packed)
         self.assertLessEqual(context.count_tokens(packed), cfg.max_context_tokens)
         self.assertLessEqual(len(packed), cfg.max_context_chars)
 
@@ -363,7 +362,7 @@ class BalancedPipelineTests(unittest.TestCase):
                 self.assertLessEqual(len(prepared.context), limit)
             else:
                 self.assertEqual(refusal.outcome, "refusal")
-        self.generate.assert_not_called()
+        self.assertTrue(all(call.kwargs.get("response_format") for call in self.generate.call_args_list))
 
     def test_top_k_one_does_not_expand_to_force_two_sellers(self):
         prepared, refusal = self.prepare(top_k=1)

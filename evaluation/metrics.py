@@ -117,7 +117,11 @@ def measurements(results, selected=None):
         "dependency_blocked": sum(bool(r.get("dependency_blocked")) for r in results),
         "degraded_retrieval": sum(bool((r.get("security_trace") or {}).get("degraded_mode")) for r in results),
         "degradation_measured": sum("security_trace" in r and bool(r.get("security_trace")) for r in results)}
+    diagnostics = {status.lower(): sum(r.get("retrieval_status") == status for r in results)
+                   for status in ("PASS", "FAIL", "NOT_APPLICABLE", "NOT_MEASURED")}
+    diagnostics["recorded"] = sum("retrieval_status" in r for r in results)
     return {"retrieval": retrieval, "quality": quality, "context": context, "security": security,
+            "retrieval_diagnostics": diagnostics,
             "reliability": reliability, "categories": category_rows, "capabilities": capability_rows,
             "failure_categories": failures,
             "latency": {"p50_ms": percentile(.5), "p95_ms": percentile(.95), "measured": len(latencies), "total": total}}

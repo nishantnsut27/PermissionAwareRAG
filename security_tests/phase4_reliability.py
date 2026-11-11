@@ -221,7 +221,7 @@ class RequestAndProviderTests(unittest.TestCase):
         def provider_stream(_messages):
             try:
                 yield "partial"
-                yield "more"
+                raise service.llm.LLMError("cancelled upstream")
             finally:
                 closed.append(True)
         user = service.USERS["U-001"]
@@ -233,7 +233,7 @@ class RequestAndProviderTests(unittest.TestCase):
             events = service.answer_query_stream(
                 service.identity.Principal(user, "verified"), "question")
             self.assertEqual(next(events)["type"], "meta")
-            self.assertEqual(next(events), {"type": "delta", "text": "partial"})
+            self.assertEqual(next(events)["type"], "error")
             events.close()
         self.assertEqual(closed, [True])
 

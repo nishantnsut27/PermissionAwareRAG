@@ -102,41 +102,6 @@ def _included_pages(chunk, ranges: list[list[int]], trimmed: int = 0) -> list[in
     return pages if full or len(pages) == 1 else []
 
 
-def _overlap_trim(text: str, previous: str) -> tuple[str, int]:
-    if not text or not previous:
-        return text, 0
-    maximum = min(len(text), len(previous), 3000)
-    for width in range(maximum, 39, -1):
-        if previous.endswith(text[:width]):
-            return text[width:], width
-    return text, 0
-
-
-def _excerpt(text: str, token_limit: int) -> tuple[str, list[list[int]]]:
-    """Return a bounded head/tail excerpt and original character ranges."""
-    if token_limit <= count_tokens(OMISSION) + 2:
-        return "", []
-    if count_tokens(text) <= token_limit:
-        return text, [[0, len(text)]]
-    low, high = 1, len(text)
-    best = ("", [])
-    while low <= high:
-        keep = (low + high) // 2
-        left_count = (keep + 1) // 2
-        right_count = keep - left_count
-        left = text[:left_count]
-        right = text[-right_count:] if right_count else ""
-        candidate = left + OMISSION + right
-        if count_tokens(candidate) <= token_limit:
-            ranges = [[0, len(left)]]
-            if right:
-                ranges.append([len(text) - len(right), len(text)])
-            best = (candidate, ranges)
-            low = keep + 1
-        else:
-            high = keep - 1
-    return best
-
 
 def _evidence_id(chunk_id: str, ranges: list[list[int]], text: str) -> str:
     raw = f"{chunk_id}|{ranges}|{text}".encode("utf-8")
@@ -144,158 +109,79 @@ def _evidence_id(chunk_id: str, ranges: list[list[int]], text: str) -> str:
 
 
 def build(scored_chunks: list[tuple[object, float | None]],
-          cfg: config.AnsweringConfig | None = None) -> tuple[str, list[Source]]:
-    """Pack evidence under hard token/character limits, then derive citations.
+          cfg: config.AnsweringConfig | None = None, *,
+          omissions: list | None = None) -> tuple[str, list[Source]]:
+    """Pack complete chunks in priority order, backfilling every unused slot.
 
-    An oversized first passage is represented by a head/tail excerpt if the
-    excerpt and its complete provenance header fit. Otherwise it is omitted;
-    an empty result lets the service return its insufficient-evidence outcome.
+    top_k limits distinct documents. Up to twelve chunks share the full token
+    and character budgets; no head/tail excerpts or fixed seller partitions can
+    silently remove a checklist's middle or strand unused capacity.
     """
     cfg = cfg or config.DEFAULT_ANSWERING
-    grouped: dict[str, list[tuple[object, float | None]]] = {}
-    metadata_by_doc: dict[str, dict] = {}
-    best_by_doc: dict[str, float | None] = {}
+    omissions = omissions if omissions is not None else []
+    blocks, seen = [], set()
+    sources_by_doc = {}
+    chunk_count = 0
     for chunk, score in scored_chunks:
         metadata = getattr(chunk, "metadata", {}) or {}
-        document_id = getattr(chunk, "document_id", None) or metadata.get("document_id") or "unknown"
-        grouped.setdefault(document_id, []).append((chunk, score))
-        metadata_by_doc.setdefault(document_id, metadata)
-        old = best_by_doc.get(document_id)
-        if score is not None and (old is None or score > old):
-            best_by_doc[document_id] = score
+        doc = getattr(chunk, "document_id", None) or metadata.get("document_id")
+        text = getattr(chunk, "text", "") or ""
+        chunk_id = str(getattr(chunk, "chunk_id", ""))
+        reason = None
+        if not doc or not chunk_id or not text.strip():
+            reason = "empty_passage_or_provenance"
+        elif chunk_id in seen:
+            reason = "duplicate_chunk"
+        elif chunk_count >= cfg.max_context_chunks:
+            reason = "chunk_limit"
+        elif doc not in sources_by_doc and len(sources_by_doc) >= cfg.top_k:
+            reason = "document_limit"
+        if reason:
+            omissions.append({"document_id": doc, "chunk_id": chunk_id, "reason": reason})
+            continue
 
-    order = sorted(grouped, key=lambda doc_id: (
-        best_by_doc.get(doc_id) is None, -(best_by_doc.get(doc_id) or 0.0)))
-    blocks: list[str] = []
-    selected: list[dict] = []
-    previous_by_doc: dict[str, str] = {}
+        ranges = [[0, len(text)]]
+        pages = _included_pages(chunk, ranges)
+        evidence_id = _evidence_id(chunk_id, ranges, text)
+        label = _label(doc, metadata.get("document_type"))
+        page_text = ", ".join(map(str, pages)) if pages else "unspecified"
+        header = f"Evidence [{evidence_id}] | {label} | Pages {page_text}\n"
+        block = header + text
+        candidate = SEPARATOR.join([*blocks, block])
+        if len(candidate) > cfg.max_context_chars or count_tokens(candidate) > cfg.max_context_tokens:
+            omissions.append({"document_id": doc, "chunk_id": chunk_id,
+                              "reason": "complete_chunk_exceeds_remaining_budget",
+                              "characters": len(block), "token_bound": count_tokens(block)})
+            continue
 
-    def within_budget(candidate_blocks: list[str]) -> bool:
-        rendered = SEPARATOR.join(candidate_blocks)
-        return (count_tokens(rendered) <= cfg.max_context_tokens
-                and len(rendered) <= cfg.max_context_chars)
-
-    for document_id in order:
-        metadata = metadata_by_doc[document_id]
-        for chunk, score in grouped[document_id]:
-            raw_text = getattr(chunk, "text", "") or ""
-            leading_trim = len(raw_text) - len(raw_text.lstrip())
-            original = raw_text.strip()
-            if not original:
-                continue
-            duplicate_of = next((row for row in selected
-                                 if row["document_id"] == document_id
-                                 and row["original_text"] == original), None)
-            pages = _pages(chunk)
-            chunk_id = str(getattr(chunk, "chunk_id", ""))
-            if duplicate_of:
-                if chunk_id and chunk_id not in duplicate_of["chunk_ids"]:
-                    duplicate_of["chunk_ids"].append(chunk_id)
-                continue
-
-            prior = previous_by_doc.get(document_id, "")
-            start_trim = 0
-            body, start_trim = _overlap_trim(original, prior)
-            if not body.strip():
-                # Fully overlapping chunks still add provenance to the span.
-                match = next((row for row in reversed(selected)
-                              if row["document_id"] == document_id), None)
-                if match:
-                    if chunk_id and chunk_id not in match["chunk_ids"]:
-                        match["chunk_ids"].append(chunk_id)
-                continue
-
-            ranges = [[start_trim, len(original)]]
-            pages = _included_pages(chunk, ranges, leading_trim)
-            evidence_text = body
-            evidence_id = _evidence_id(chunk_id, ranges, evidence_text)
-            page_text = ", ".join(map(str, pages)) if pages else "unspecified"
-            label = _label(document_id, metadata.get("document_type"))
-            header = (f"Evidence [{evidence_id}] | {label} | Pages {page_text}"
-                      f"\n")
-            block = header + evidence_text
-            candidate = blocks + [block]
-            if not within_budget(candidate) and not selected:
-                reserve_header = (f"Evidence [{evidence_id}] | {label} | Pages "
-                                  f"{page_text if len(page_text) > 11 else 'unspecified'}\n")
-                remaining = cfg.max_context_tokens - count_tokens(
-                    SEPARATOR.join(blocks) + reserve_header)
-                remaining = min(remaining, cfg.max_context_chars - len(reserve_header))
-                excerpt, excerpt_ranges = _excerpt(original, remaining)
-                if excerpt:
-                    ranges = [[a, b] for a, b in excerpt_ranges]
-                    pages = _included_pages(chunk, ranges, leading_trim)
-                    page_text = ", ".join(map(str, pages)) if pages else "unspecified"
-                    evidence_text = excerpt
-                    evidence_id = _evidence_id(chunk_id, ranges, evidence_text)
-                    header = (f"Evidence [{evidence_id}] | {label} | Pages {page_text}"
-                              f"\n")
-                    block = header + evidence_text
-                    candidate = blocks + [block]
-            if not within_budget(candidate):
-                continue
-
-            blocks.append(block)
-            selected.append({
-                "document_id": document_id, "document_type": metadata.get("document_type"),
-                "seller_id": metadata.get("seller_id"),
-                "department": metadata.get("department"),
-                "chunk_ids": [chunk_id] if chunk_id else [],
-                "evidence_id": evidence_id, "pages": pages,
-                "score": score, "text": evidence_text,
-                "original_text": original, "ranges": ranges,
-                "start_trim": start_trim,
-            })
-            previous_by_doc[document_id] = (prior + " " + body).strip()
-
-    sources_by_doc: dict[str, Source] = {}
-    for row in selected:
-        source = sources_by_doc.get(row["document_id"])
+        blocks.append(block)
+        seen.add(chunk_id)
+        chunk_count += 1
+        source = sources_by_doc.get(doc)
         if source is None:
-            label = _label(row["document_id"], row["document_type"])
-            source = Source(row["document_id"], row["document_type"], label,
-                            row["seller_id"], row["department"], relevance=row["score"])
-            sources_by_doc[row["document_id"]] = source
-        source.pages = sorted(set(source.pages + row["pages"]))
-        source.chunk_ids = list(dict.fromkeys(source.chunk_ids + row["chunk_ids"]))
-        source.evidence_ids.append(row["evidence_id"])
-        source.spans.append({
-            "evidence_id": row["evidence_id"],
-            "document_id": row["document_id"],
-            "chunk_ids": row["chunk_ids"],
-            "pages": row["pages"],
-            "text": row["text"],
-            "offsets": row["ranges"],
-        })
-
+            source = Source(doc, metadata.get("document_type"), label,
+                            metadata.get("seller_id"), metadata.get("department"), relevance=score)
+            sources_by_doc[doc] = source
+        elif score is not None and (source.relevance is None or score > source.relevance):
+            source.relevance = score
+        source.pages = sorted(set(source.pages + pages))
+        source.chunk_ids.append(chunk_id)
+        source.evidence_ids.append(evidence_id)
+        source.spans.append({"evidence_id": evidence_id, "document_id": doc,
+                             "chunk_ids": [chunk_id], "pages": pages,
+                             "text": text, "offsets": ranges})
     return SEPARATOR.join(blocks), list(sources_by_doc.values())
 
 
 def build_balanced(scored_chunks: list[tuple[object, float | None]],
-                   sellers: list[str], cfg: config.AnsweringConfig) -> tuple[str, list[Source]]:
-    """Partition the existing context budget so one seller cannot exhaust it.
-
-    Each included seller uses the existing span/citation packer. Separators
-    count against BOTH limits; tiny budgets may omit sellers, never exceed caps.
-    """
-    groups = {seller: [pair for pair in scored_chunks
-                       if pair[0].metadata.get("seller_id") == seller]
-              for seller in sellers}
-    active = [seller for seller in sellers if groups[seller]]
-    if not active:
-        return "", []
-    separators = len(active) - 1
-    token_pool = max(0, cfg.max_context_tokens - separators * count_tokens(SEPARATOR))
-    char_pool = max(0, cfg.max_context_chars - separators * len(SEPARATOR))
-    blocks, sources = [], []
-    for index, seller in enumerate(active):
-        tokens = token_pool // len(active) + (index < token_pool % len(active))
-        chars = char_pool // len(active) + (index < char_pool % len(active))
-        header = f"Seller account: {seller}\n"
-        block, included = build(groups[seller], replace(
-            cfg, max_context_tokens=max(0, tokens - count_tokens(header)),
-            max_context_chars=max(0, chars - len(header))))
-        if block:
-            blocks.append(header + block)
-            sources.extend(included)
-    return SEPARATOR.join(blocks), sources
+                   sellers: list[str], cfg: config.AnsweringConfig, *,
+                   omissions: list | None = None) -> tuple[str, list[Source]]:
+    """Reserve one passage per seller, then redistribute all unused capacity."""
+    reserved = []
+    for seller in sellers:
+        pair = next((p for p in scored_chunks if p[0].metadata.get("seller_id") == seller), None)
+        if pair:
+            reserved.append(pair)
+    selected = {id(pair[0]) for pair in reserved}
+    ordered = reserved + [pair for pair in scored_chunks if id(pair[0]) not in selected]
+    return build(ordered, cfg, omissions=omissions)

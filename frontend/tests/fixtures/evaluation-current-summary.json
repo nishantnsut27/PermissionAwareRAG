@@ -1,0 +1,1132 @@
+{
+  "has_results": true,
+  "available_reports": [
+    {
+      "report_id": "runs/latest-cases-20261111.json",
+      "run_id": "latest-cases-20261111",
+      "started_at": "2026-11-11T08:32:04+00:00",
+      "generated_at": "2026-11-11T08:32:04+00:00",
+      "status": "Complete",
+      "dataset_version": "1.2",
+      "selected_cases": 23,
+      "total_cases": 23,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "latest_by_case",
+      "source_run_count": 3
+    },
+    {
+      "report_id": "runs/failed-cases-rerun-20261111-targeted.json",
+      "run_id": "run-20261111-080904-737400",
+      "started_at": "2026-11-11T08:09:04+00:00",
+      "generated_at": "2026-11-11T08:17:38+00:00",
+      "status": "Complete",
+      "dataset_version": "1.2",
+      "selected_cases": 5,
+      "total_cases": 5,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/execution-fixes-20261106-targeted.json",
+      "run_id": "run-20261106-050956-369465",
+      "started_at": "2026-11-06T05:09:56+00:00",
+      "generated_at": "2026-11-11T08:08:15+00:00",
+      "status": "Complete",
+      "dataset_version": "1.2",
+      "selected_cases": 10,
+      "total_cases": 10,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/failed-cases-live-20261106-targeted.json",
+      "run_id": "run-20261106-035515-099339",
+      "started_at": "2026-11-06T03:55:15+00:00",
+      "generated_at": "2026-11-06T04:46:37+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.2",
+      "selected_cases": 23,
+      "total_cases": 23,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/remediation-v12-20261105-r9-targeted.json",
+      "run_id": "run-20261105-185040-296541",
+      "started_at": "2026-11-05T18:50:40+00:00",
+      "generated_at": "2026-11-05T19:10:16+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.2",
+      "selected_cases": 32,
+      "total_cases": 7,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/remediation-v12-20261105-r8-targeted.json",
+      "run_id": "run-20261105-182241-331225",
+      "started_at": "2026-11-05T18:22:41+00:00",
+      "generated_at": "2026-11-05T18:32:55+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.2",
+      "selected_cases": 32,
+      "total_cases": 6,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/remediation-v12-20261105-r7-targeted.json",
+      "run_id": "run-20261105-175433-219531",
+      "started_at": "2026-11-05T17:54:33+00:00",
+      "generated_at": "2026-11-05T18:05:05+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.2",
+      "selected_cases": 32,
+      "total_cases": 6,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/remediation-v12-20261105-r6-targeted.json",
+      "run_id": "run-20261105-174756-968108",
+      "started_at": "2026-11-05T17:47:56+00:00",
+      "generated_at": "2026-11-05T17:50:13+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.2",
+      "selected_cases": 32,
+      "total_cases": 2,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/remediation-v12-20261105-r5-targeted.json",
+      "run_id": "run-20261105-173035-368435",
+      "started_at": "2026-11-05T17:30:35+00:00",
+      "generated_at": "2026-11-05T17:42:06+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.2",
+      "selected_cases": 32,
+      "total_cases": 7,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/remediation-v12-20261105-r4-targeted.json",
+      "run_id": "run-20261105-172110-688309",
+      "started_at": "2026-11-05T17:21:10+00:00",
+      "generated_at": "2026-11-05T17:21:26+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.2",
+      "selected_cases": 32,
+      "total_cases": 1,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/remediation-v12-20261105-r3-targeted.json",
+      "run_id": "run-20261105-162616-872324",
+      "started_at": "2026-11-05T16:26:16+00:00",
+      "generated_at": "2026-11-05T16:46:33+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.2",
+      "selected_cases": 32,
+      "total_cases": 9,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/remediation-v12-20261105-r2-targeted.json",
+      "run_id": "run-20261105-162215-436173",
+      "started_at": "2026-11-05T16:22:15+00:00",
+      "generated_at": "2026-11-05T16:22:27+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.2",
+      "selected_cases": 32,
+      "total_cases": 1,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/remediation-v12-20261105-targeted.json",
+      "run_id": "run-20261105-161604-910042",
+      "started_at": "2026-11-05T16:16:04+00:00",
+      "generated_at": "2026-11-05T16:16:17+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.2",
+      "selected_cases": 32,
+      "total_cases": 1,
+      "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+      "status_semantics": "answer_security",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/baseline-v11-20261104-full.json",
+      "run_id": "run-20261104-101037-414954",
+      "started_at": "2026-11-04T10:10:37+00:00",
+      "generated_at": "2026-11-05T05:33:19+00:00",
+      "status": "Complete",
+      "dataset_version": "1.1",
+      "selected_cases": 90,
+      "total_cases": 90,
+      "scoring_policy": "historical_combined",
+      "status_semantics": "historical_combined",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/baseline-v11-20261104-pilot.json",
+      "run_id": "run-20261104-091136-566729",
+      "started_at": "2026-11-04T09:11:36+00:00",
+      "generated_at": "2026-11-04T19:00:14+00:00",
+      "status": "Complete",
+      "dataset_version": "1.1",
+      "selected_cases": 16,
+      "total_cases": 16,
+      "scoring_policy": "historical_combined",
+      "status_semantics": "historical_combined",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/pilot-20261104-v11.json",
+      "run_id": "run-20261104-081044-452453",
+      "started_at": "2026-11-04T08:10:44+00:00",
+      "generated_at": "2026-11-04T08:14:12+00:00",
+      "status": "Incomplete",
+      "dataset_version": "1.1",
+      "selected_cases": 16,
+      "total_cases": 3,
+      "scoring_policy": "historical_combined",
+      "status_semantics": "historical_combined",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/full-20260921-v2.json",
+      "run_id": "run-20260921-114043-959525",
+      "started_at": "2026-09-21T11:40:43+00:00",
+      "generated_at": "2026-09-22T03:39:59+00:00",
+      "status": "Legacy",
+      "dataset_version": "1.0",
+      "selected_cases": 60,
+      "total_cases": 60,
+      "scoring_policy": "historical_combined",
+      "status_semantics": "historical_combined",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "results.json",
+      "run_id": "run-20260921-101046-946190",
+      "started_at": "2026-09-21T10:10:46+00:00",
+      "generated_at": "2026-09-21T11:49:46+00:00",
+      "status": "Legacy",
+      "dataset_version": "1.0",
+      "selected_cases": 60,
+      "total_cases": 60,
+      "scoring_policy": "historical_combined",
+      "status_semantics": "historical_combined",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/limited-20260921.json",
+      "run_id": "run-20260921-100506-694187",
+      "started_at": "2026-09-21T10:05:06+00:00",
+      "generated_at": "2026-09-21T10:06:53+00:00",
+      "status": "Legacy",
+      "dataset_version": "1.0",
+      "selected_cases": 3,
+      "total_cases": 2,
+      "scoring_policy": "historical_combined",
+      "status_semantics": "historical_combined",
+      "report_kind": "run",
+      "source_run_count": 1
+    },
+    {
+      "report_id": "runs/legacy-20260919.json",
+      "run_id": "run-20260919-031323",
+      "started_at": null,
+      "generated_at": "2026-09-19T03:13:23+00:00",
+      "status": "Legacy",
+      "dataset_version": "1.0",
+      "selected_cases": 60,
+      "total_cases": 60,
+      "scoring_policy": "historical_combined",
+      "status_semantics": "historical_combined",
+      "report_kind": "run",
+      "source_run_count": 1
+    }
+  ],
+  "report_id": "runs/latest-cases-20261111.json",
+  "run_id": "latest-cases-20261111",
+  "started_at": "2026-11-11T08:32:04+00:00",
+  "report_kind": "latest_by_case",
+  "source_run_count": 3,
+  "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+  "status_semantics": "answer_security",
+  "generated_at": "2026-11-11T08:32:04+00:00",
+  "dataset_version": "1.2",
+  "selected_cases": 23,
+  "total_cases": 23,
+  "status": "Complete",
+  "schema_version": 6,
+  "selection_complete": true,
+  "partial": true,
+  "duration_s": null,
+  "model": "openai/gpt-oss-120b",
+  "dataset_id": "GOLDEN-P7-NEXORA",
+  "stop_reason": null,
+  "phase": "finished",
+  "measurements": {
+    "retrieval": {
+      "recall_at_k": {
+        "value": 0.8804,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "precision_at_k": {
+        "value": 0.2783,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "mrr": {
+        "value": 0.8007,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      }
+    },
+    "quality": {
+      "groundedness": {
+        "value": 1.0,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "answer_correctness": {
+        "value": 0.6739,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "answer_relevancy": {
+        "value": 0.9826,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "fact_coverage": {
+        "value": 0.6739,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      }
+    },
+    "context": {
+      "coverage": {
+        "value": 0.8261,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "precision": {
+        "value": 0.5688,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      }
+    },
+    "security": {
+      "passed": {
+        "value": 1.0,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "raw_candidate_exposure": {
+        "value": 0.0,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "postfilter_exposure": {
+        "value": 0.0,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "context_exposure": {
+        "value": 0.0,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "citation_exposure": {
+        "value": 0.0,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "restricted_fact_exposure": {
+        "value": 0.0,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "answer_leakage": {
+        "value": 0.0,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "behavior_match": {
+        "value": 1.0,
+        "measured": 23,
+        "applicable": 23,
+        "total": 23
+      },
+      "refusal_match": {
+        "value": null,
+        "measured": 0,
+        "applicable": 0,
+        "total": 23
+      },
+      "prompt_injection_blocked": {
+        "value": null,
+        "measured": 0,
+        "applicable": 0,
+        "total": 23
+      }
+    },
+    "retrieval_diagnostics": {
+      "pass": 21,
+      "fail": 2,
+      "not_applicable": 0,
+      "not_measured": 0,
+      "recorded": 23
+    },
+    "reliability": {
+      "selected": 23,
+      "recorded": 23,
+      "passed": 14,
+      "failed": 9,
+      "errors": 0,
+      "pending": 0,
+      "completed": 23,
+      "partial": 0,
+      "pipeline_failed": 0,
+      "unjudged": 0,
+      "dependency_blocked": 0,
+      "degraded_retrieval": 0,
+      "degradation_measured": 23
+    },
+    "categories": {
+      "authorized_factual": {
+        "selected": 6,
+        "recorded": 6,
+        "passed": 4,
+        "failed": 2,
+        "errors": 0,
+        "pending": 0
+      },
+      "cross_seller": {
+        "selected": 4,
+        "recorded": 4,
+        "passed": 2,
+        "failed": 2,
+        "errors": 0,
+        "pending": 0
+      },
+      "follow_up": {
+        "selected": 6,
+        "recorded": 6,
+        "passed": 5,
+        "failed": 1,
+        "errors": 0,
+        "pending": 0
+      },
+      "unauthorized_access": {
+        "selected": 2,
+        "recorded": 2,
+        "passed": 0,
+        "failed": 2,
+        "errors": 0,
+        "pending": 0
+      },
+      "mixed_access": {
+        "selected": 1,
+        "recorded": 1,
+        "passed": 1,
+        "failed": 0,
+        "errors": 0,
+        "pending": 0
+      },
+      "policy_governance": {
+        "selected": 2,
+        "recorded": 2,
+        "passed": 2,
+        "failed": 0,
+        "errors": 0,
+        "pending": 0
+      },
+      "ambiguous": {
+        "selected": 2,
+        "recorded": 2,
+        "passed": 0,
+        "failed": 2,
+        "errors": 0,
+        "pending": 0
+      }
+    },
+    "capabilities": {
+      "portfolio": {
+        "selected": 3,
+        "recorded": 3,
+        "passed": 0,
+        "failed": 3,
+        "errors": 0,
+        "pending": 0
+      },
+      "personal_scope": {
+        "selected": 1,
+        "recorded": 1,
+        "passed": 0,
+        "failed": 1,
+        "errors": 0,
+        "pending": 0
+      },
+      "broad_summary": {
+        "selected": 1,
+        "recorded": 1,
+        "passed": 0,
+        "failed": 1,
+        "errors": 0,
+        "pending": 0
+      },
+      "call_transcript": {
+        "selected": 3,
+        "recorded": 3,
+        "passed": 2,
+        "failed": 1,
+        "errors": 0,
+        "pending": 0
+      },
+      "seller_filter": {
+        "selected": 1,
+        "recorded": 1,
+        "passed": 1,
+        "failed": 0,
+        "errors": 0,
+        "pending": 0
+      },
+      "long_conversation": {
+        "selected": 4,
+        "recorded": 4,
+        "passed": 3,
+        "failed": 1,
+        "errors": 0,
+        "pending": 0
+      },
+      "seller_change": {
+        "selected": 1,
+        "recorded": 1,
+        "passed": 0,
+        "failed": 1,
+        "errors": 0,
+        "pending": 0
+      },
+      "organization_scope": {
+        "selected": 2,
+        "recorded": 2,
+        "passed": 2,
+        "failed": 0,
+        "errors": 0,
+        "pending": 0
+      },
+      "scope_switch": {
+        "selected": 1,
+        "recorded": 1,
+        "passed": 1,
+        "failed": 0,
+        "errors": 0,
+        "pending": 0
+      },
+      "hindi": {
+        "selected": 1,
+        "recorded": 1,
+        "passed": 0,
+        "failed": 1,
+        "errors": 0,
+        "pending": 0
+      }
+    },
+    "failure_categories": {
+      "security": 0,
+      "retrieval": 2,
+      "quality": 9,
+      "behavior": 0,
+      "partial_generation": 0,
+      "infrastructure": 0,
+      "judging": 0,
+      "dependency": 0
+    },
+    "latency": {
+      "p50_ms": 12123.0,
+      "p95_ms": 47676.4,
+      "measured": 23,
+      "total": 23
+    }
+  },
+  "cohorts": {
+    "original_60": {
+      "retrieval": {
+        "recall_at_k": {
+          "value": 0.8077,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "precision_at_k": {
+          "value": 0.2923,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "mrr": {
+          "value": 0.6474,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        }
+      },
+      "quality": {
+        "groundedness": {
+          "value": 1.0,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "answer_correctness": {
+          "value": 0.6792,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "answer_relevancy": {
+          "value": 0.9692,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "fact_coverage": {
+          "value": 0.6795,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        }
+      },
+      "context": {
+        "coverage": {
+          "value": 0.6923,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "precision": {
+          "value": 0.5833,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        }
+      },
+      "security": {
+        "passed": {
+          "value": 1.0,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "raw_candidate_exposure": {
+          "value": 0.0,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "postfilter_exposure": {
+          "value": 0.0,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "context_exposure": {
+          "value": 0.0,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "citation_exposure": {
+          "value": 0.0,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "restricted_fact_exposure": {
+          "value": 0.0,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "answer_leakage": {
+          "value": 0.0,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "behavior_match": {
+          "value": 1.0,
+          "measured": 13,
+          "applicable": 13,
+          "total": 13
+        },
+        "refusal_match": {
+          "value": null,
+          "measured": 0,
+          "applicable": 0,
+          "total": 13
+        },
+        "prompt_injection_blocked": {
+          "value": null,
+          "measured": 0,
+          "applicable": 0,
+          "total": 13
+        }
+      },
+      "retrieval_diagnostics": {
+        "pass": 11,
+        "fail": 2,
+        "not_applicable": 0,
+        "not_measured": 0,
+        "recorded": 13
+      },
+      "reliability": {
+        "selected": 13,
+        "recorded": 13,
+        "passed": 8,
+        "failed": 5,
+        "errors": 0,
+        "pending": 0,
+        "completed": 13,
+        "partial": 0,
+        "pipeline_failed": 0,
+        "unjudged": 0,
+        "dependency_blocked": 0,
+        "degraded_retrieval": 0,
+        "degradation_measured": 13
+      },
+      "categories": {
+        "authorized_factual": {
+          "selected": 3,
+          "recorded": 3,
+          "passed": 2,
+          "failed": 1,
+          "errors": 0,
+          "pending": 0
+        },
+        "cross_seller": {
+          "selected": 2,
+          "recorded": 2,
+          "passed": 2,
+          "failed": 0,
+          "errors": 0,
+          "pending": 0
+        },
+        "follow_up": {
+          "selected": 2,
+          "recorded": 2,
+          "passed": 2,
+          "failed": 0,
+          "errors": 0,
+          "pending": 0
+        },
+        "unauthorized_access": {
+          "selected": 2,
+          "recorded": 2,
+          "passed": 0,
+          "failed": 2,
+          "errors": 0,
+          "pending": 0
+        },
+        "mixed_access": {
+          "selected": 1,
+          "recorded": 1,
+          "passed": 1,
+          "failed": 0,
+          "errors": 0,
+          "pending": 0
+        },
+        "policy_governance": {
+          "selected": 1,
+          "recorded": 1,
+          "passed": 1,
+          "failed": 0,
+          "errors": 0,
+          "pending": 0
+        },
+        "ambiguous": {
+          "selected": 2,
+          "recorded": 2,
+          "passed": 0,
+          "failed": 2,
+          "errors": 0,
+          "pending": 0
+        }
+      },
+      "capabilities": {},
+      "failure_categories": {
+        "security": 0,
+        "retrieval": 2,
+        "quality": 5,
+        "behavior": 0,
+        "partial_generation": 0,
+        "infrastructure": 0,
+        "judging": 0,
+        "dependency": 0
+      },
+      "latency": {
+        "p50_ms": 12016.0,
+        "p95_ms": 50513.2,
+        "measured": 13,
+        "total": 13
+      }
+    },
+    "expanded": {
+      "retrieval": {
+        "recall_at_k": {
+          "value": 0.8804,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "precision_at_k": {
+          "value": 0.2783,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "mrr": {
+          "value": 0.8007,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        }
+      },
+      "quality": {
+        "groundedness": {
+          "value": 1.0,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "answer_correctness": {
+          "value": 0.6739,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "answer_relevancy": {
+          "value": 0.9826,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "fact_coverage": {
+          "value": 0.6739,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        }
+      },
+      "context": {
+        "coverage": {
+          "value": 0.8261,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "precision": {
+          "value": 0.5688,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        }
+      },
+      "security": {
+        "passed": {
+          "value": 1.0,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "raw_candidate_exposure": {
+          "value": 0.0,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "postfilter_exposure": {
+          "value": 0.0,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "context_exposure": {
+          "value": 0.0,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "citation_exposure": {
+          "value": 0.0,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "restricted_fact_exposure": {
+          "value": 0.0,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "answer_leakage": {
+          "value": 0.0,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "behavior_match": {
+          "value": 1.0,
+          "measured": 23,
+          "applicable": 23,
+          "total": 23
+        },
+        "refusal_match": {
+          "value": null,
+          "measured": 0,
+          "applicable": 0,
+          "total": 23
+        },
+        "prompt_injection_blocked": {
+          "value": null,
+          "measured": 0,
+          "applicable": 0,
+          "total": 23
+        }
+      },
+      "retrieval_diagnostics": {
+        "pass": 21,
+        "fail": 2,
+        "not_applicable": 0,
+        "not_measured": 0,
+        "recorded": 23
+      },
+      "reliability": {
+        "selected": 23,
+        "recorded": 23,
+        "passed": 14,
+        "failed": 9,
+        "errors": 0,
+        "pending": 0,
+        "completed": 23,
+        "partial": 0,
+        "pipeline_failed": 0,
+        "unjudged": 0,
+        "dependency_blocked": 0,
+        "degraded_retrieval": 0,
+        "degradation_measured": 23
+      },
+      "categories": {
+        "authorized_factual": {
+          "selected": 6,
+          "recorded": 6,
+          "passed": 4,
+          "failed": 2,
+          "errors": 0,
+          "pending": 0
+        },
+        "cross_seller": {
+          "selected": 4,
+          "recorded": 4,
+          "passed": 2,
+          "failed": 2,
+          "errors": 0,
+          "pending": 0
+        },
+        "follow_up": {
+          "selected": 6,
+          "recorded": 6,
+          "passed": 5,
+          "failed": 1,
+          "errors": 0,
+          "pending": 0
+        },
+        "unauthorized_access": {
+          "selected": 2,
+          "recorded": 2,
+          "passed": 0,
+          "failed": 2,
+          "errors": 0,
+          "pending": 0
+        },
+        "mixed_access": {
+          "selected": 1,
+          "recorded": 1,
+          "passed": 1,
+          "failed": 0,
+          "errors": 0,
+          "pending": 0
+        },
+        "policy_governance": {
+          "selected": 2,
+          "recorded": 2,
+          "passed": 2,
+          "failed": 0,
+          "errors": 0,
+          "pending": 0
+        },
+        "ambiguous": {
+          "selected": 2,
+          "recorded": 2,
+          "passed": 0,
+          "failed": 2,
+          "errors": 0,
+          "pending": 0
+        }
+      },
+      "capabilities": {
+        "portfolio": {
+          "selected": 3,
+          "recorded": 3,
+          "passed": 0,
+          "failed": 3,
+          "errors": 0,
+          "pending": 0
+        },
+        "personal_scope": {
+          "selected": 1,
+          "recorded": 1,
+          "passed": 0,
+          "failed": 1,
+          "errors": 0,
+          "pending": 0
+        },
+        "broad_summary": {
+          "selected": 1,
+          "recorded": 1,
+          "passed": 0,
+          "failed": 1,
+          "errors": 0,
+          "pending": 0
+        },
+        "call_transcript": {
+          "selected": 3,
+          "recorded": 3,
+          "passed": 2,
+          "failed": 1,
+          "errors": 0,
+          "pending": 0
+        },
+        "seller_filter": {
+          "selected": 1,
+          "recorded": 1,
+          "passed": 1,
+          "failed": 0,
+          "errors": 0,
+          "pending": 0
+        },
+        "long_conversation": {
+          "selected": 4,
+          "recorded": 4,
+          "passed": 3,
+          "failed": 1,
+          "errors": 0,
+          "pending": 0
+        },
+        "seller_change": {
+          "selected": 1,
+          "recorded": 1,
+          "passed": 0,
+          "failed": 1,
+          "errors": 0,
+          "pending": 0
+        },
+        "organization_scope": {
+          "selected": 2,
+          "recorded": 2,
+          "passed": 2,
+          "failed": 0,
+          "errors": 0,
+          "pending": 0
+        },
+        "scope_switch": {
+          "selected": 1,
+          "recorded": 1,
+          "passed": 1,
+          "failed": 0,
+          "errors": 0,
+          "pending": 0
+        },
+        "hindi": {
+          "selected": 1,
+          "recorded": 1,
+          "passed": 0,
+          "failed": 1,
+          "errors": 0,
+          "pending": 0
+        }
+      },
+      "failure_categories": {
+        "security": 0,
+        "retrieval": 2,
+        "quality": 9,
+        "behavior": 0,
+        "partial_generation": 0,
+        "infrastructure": 0,
+        "judging": 0,
+        "dependency": 0
+      },
+      "latency": {
+        "p50_ms": 12123.0,
+        "p95_ms": 47676.4,
+        "measured": 23,
+        "total": 23
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ restart, up to four total attempts per case. All attempts remain in the logs.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import re
@@ -52,7 +53,45 @@ def run_lock(path):
                 fcntl.flock(handle, fcntl.LOCK_UN)
 
 
-def execute(name: str, *, plan: bool = False, phase: str = 'all', targeted_retry: bool = False) -> int:
+def execute_targeted(name, only, plan=False):
+    dataset, catalog = ds.load(), ds.PermissionCatalog()
+    problems = ds.validate(dataset, catalog)
+    if problems:
+        raise ds.DatasetError('\n'.join(problems))
+    fixture = json.loads((ds.PACKAGE_ROOT / 'fixtures/remediation_v12_saved_contexts.json').read_text(encoding='utf-8'))
+    requested = only.split(',') if only else fixture['targeted_ids']
+    cases = runner.select_cases(dataset, only=requested)
+    ids = [case.eval_id for case in cases]
+    if len(cases) == len(dataset):
+        raise ds.DatasetError('The targeted phase must select fewer than all cases.')
+    path = ds.PACKAGE_ROOT / 'runs' / f'{name}-targeted.json'
+    print(f'Targeted selection with prerequisite closure ({len(ids)}): {", ".join(ids)}', flush=True)
+    print(f'Output: {path}\n90-second pacing; scored quality failures are preserved without retries.', flush=True)
+    if plan:
+        if path.exists():
+            previous = runner.load_results(path)
+            controls = previous['configuration']
+            manifest = runner.input_manifest(dataset, catalog, controls)
+            if previous.get('selected_ids') != ids or previous.get('fingerprint') != runner.fingerprint(dataset, catalog, controls):
+                raise ds.DatasetError('Checkpoint mismatch: ' + ', '.join(runner.changed_components(previous, manifest)))
+            print('Resume pending/error cases only; retain completed PASS and FAIL rows.')
+        print('Offline preview complete. No provider calls made.')
+        return 0
+    config.validate_env()
+    with run_lock(ROOT / '.cache/evaluation.lock'):
+        result = runner.run(dataset, catalog, only=ids, delay_s=90, retry_wait_s=90,
+                            max_retries=0, resume=path.exists(), output=path, retry_quality=False)
+    print(f"Targeted result: {result['summary']['passed']} PASS, {result['summary']['failed']} FAIL, {result['summary']['errors']} ERROR", flush=True)
+    return 2 if result.get('stop_reason') or result['summary']['errors'] else 1 if result['summary']['failed'] else 0
+
+
+def execute(name: str, *, plan: bool = False, phase: str = 'all', targeted_retry: bool = False, only=None) -> int:
+    if phase == 'targeted':
+        if targeted_retry:
+            raise ds.DatasetError('Quality retries are disabled for targeted validation.')
+        return execute_targeted(name, only, plan)
+    if only:
+        raise ds.DatasetError('--only requires --phase targeted')
     if targeted_retry and phase != 'full':
         raise ds.DatasetError('--retry-errors-and-low-attempt-failures requires --phase full')
     dataset = ds.load()
@@ -76,9 +115,7 @@ def execute(name: str, *, plan: bool = False, phase: str = 'all', targeted_retry
                 controls = {**previous['configuration'], 'groq_request_policy': runner.GROQ_REQUEST_POLICY,
                             'case_attempt_limits': limits}
                 signature = runner.fingerprint(dataset, catalog, controls)
-                if (previous['fingerprint'] != signature
-                        and not runner.compatible_groq_checkpoint(previous, {**controls, 'fingerprint': signature})
-                        and not runner.compatible_targeted_checkpoint(previous, dataset, catalog, controls)):
+                if previous.get('schema_version') != runner.SCHEMA_VERSION or previous['fingerprint'] != signature:
                     raise ds.DatasetError('The saved report does not match the current evaluation inputs.')
                 rows = {row['eval_id']: row for row in previous['results']}
                 batch = runner.targeted_retry_plan(previous) if targeted_retry else None
@@ -152,10 +189,11 @@ def execute(name: str, *, plan: bool = False, phase: str = 'all', targeted_retry
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--name', default='baseline-v11-20261104',
+    parser.add_argument('--name', default='remediation-v12-20261105',
                         help='Stable checkpoint name; keep it unchanged to resume, use a new name for a new baseline')
     parser.add_argument('--plan', action='store_true', help='offline validation and preview only')
-    parser.add_argument('--phase', choices=('all', 'pilot', 'full'), default='all',
+    parser.add_argument('--only', help='comma-separated case IDs for targeted validation; includes prerequisite closure')
+    parser.add_argument('--phase', choices=('all', 'pilot', 'full', 'targeted'), default='targeted',
                         help='Use full to resume the existing 90-case report directly, without visiting the pilot')
     parser.add_argument('--retry-errors-and-low-attempt-failures', action='store_true',
                         help='With --phase full: one frozen extra attempt for every error and FAIL with <=2 total attempts; keep the full report and logs')
@@ -165,7 +203,7 @@ def main():
     logging.basicConfig(level=logging.ERROR)
     try:
         return execute(args.name, plan=args.plan, phase=args.phase,
-                       targeted_retry=args.retry_errors_and_low_attempt_failures)
+                       targeted_retry=args.retry_errors_and_low_attempt_failures, only=args.only)
     except KeyboardInterrupt:
         print('Paused. Run the same command to resume.', file=sys.stderr)
         return 130

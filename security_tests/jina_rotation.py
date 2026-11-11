@@ -232,9 +232,9 @@ class MigrationTests(unittest.TestCase):
         return runner.compatible_jina_checkpoint(self.previous, dataset or self.dataset,
                                                 self.catalog, current or self.current)
 
-    def test_known_upgrade_accepts_only_same_models_dataset_index_and_thresholds(self):
+    def test_historical_upgrade_is_incompatible_with_v6(self):
         with patch.object(runner, 'resolve_index_snapshot', side_effect=AssertionError('offline only')):
-            self.assertTrue(self.compatible())
+            self.assertFalse(self.compatible())
             changed = copy.deepcopy(self.dataset)
             changed.cases[0] = replace(changed.cases[0], question='changed')
             self.assertFalse(self.compatible(changed))
@@ -260,7 +260,7 @@ class MigrationTests(unittest.TestCase):
         with patch.dict(os.environ, {'JINA_API_KEY_1': 'replacement-1', 'JINA_API_KEY_2': 'replacement-2'}):
             self.assertEqual(first, runner.fingerprint(self.dataset, self.catalog, self.current))
 
-    def test_resume_migrates_existing_attempts_and_runs_only_the_fourth_attempt(self):
+    def test_resume_rejects_historical_migration_without_writing(self):
         with tempfile.TemporaryDirectory() as folder, \
              patch.object(runner, 'resolve_index_snapshot', return_value={'collection_name': 'offline'}), \
              patch.object(runner.index_retrieval, 'pin_revision', return_value=nullcontext()), \
@@ -290,18 +290,12 @@ class MigrationTests(unittest.TestCase):
                 return evaluator.CaseResult(case.eval_id, case.user_id, case.user_name,
                     case.question, case.category, case.expected_behavior, status='PASS',
                     outcome='answer', answered=True, answer='offline answer')
+            before = path.read_bytes()
             with patch.object(evaluator, 'run_case', side_effect=success) as execute:
-                migrated = runner.run(**controls, resume=True)
-            self.assertEqual([call.args[0].eval_id for call in execute.call_args_list], ['E001'])
-            self.assertEqual(len(migrated['results'][0]['attempts']), 4)
-            self.assertEqual(migrated['results'][0]['attempts'][:3], previous['results'][0]['attempts'])
-            self.assertEqual(migrated['results'][1], previous['results'][1])
-            self.assertEqual(migrated['run_id'], previous['run_id'])
-            self.assertEqual(len(migrated['policy_migrations']), 1)
-            self.assertEqual(migrated['first_attempt_summary']['errors'], 1)
-            with patch.object(evaluator, 'run_case') as execute:
-                runner.run(**controls, resume=True)
-                execute.assert_not_called()
+                with self.assertRaises(ds.DatasetError):
+                    runner.run(**controls, resume=True)
+            execute.assert_not_called()
+            self.assertEqual(path.read_bytes(), before)
 
 
 if __name__ == '__main__':

@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 CASE_TOP_K = int(os.getenv("EVAL_CASE_TOP_K", "5") or 5)
 
 # Pass gates. Deliberately explicit rather than folded into one opaque score:
-# a case has to clear retrieval, generation and security separately.
+# answer/security and retrieval are measured separately under policy v6.
+SCORING_POLICY = "answer_security_v6_retrieval_diagnostic"
 MIN_RECALL = 0.5
 MIN_GROUNDEDNESS = 0.7
 MIN_CORRECTNESS = 0.6
@@ -49,6 +50,8 @@ class CaseResult:
     expected_behavior: str
     actual_behavior: str = ""
     status: str = ERROR
+    retrieval_status: str = "NOT_MEASURED"
+    retrieval_failure_reasons: list[str] = field(default_factory=list)
     answer: str = ""
     answered: bool = False
     outcome: str = ""
@@ -95,6 +98,9 @@ class CaseResult:
             "expected_behavior": self.expected_behavior,
             "actual_behavior": self.actual_behavior,
             "status": self.status,
+            "scoring_policy": SCORING_POLICY,
+            "retrieval_status": self.retrieval_status,
+            "retrieval_failure_reasons": self.retrieval_failure_reasons,
             "answer": self.answer,
             "answered": self.answered,
             "outcome": self.outcome,
@@ -130,31 +136,26 @@ class CaseResult:
         }
 
 
-def _restricted_subject(case: EvalCase, catalog: PermissionCatalog) -> str:
-    """Plain description of what this identity must not learn about."""
-    parts = []
-    for document_id in sorted(catalog.denied_documents(case.user_id)
-                              | set(case.forbidden_sources)):
-        document = catalog.by_document_id.get(document_id) or {}
-        descriptor = " ".join(str(v) for v in (
-            document.get("document_type"), document_id) if v)
-        seller = document.get("seller_id")
-        if seller and seller != "Organization-wide":
-            descriptor += f" concerning seller {seller}"
-        parts.append(descriptor)
-    if case.notes:
-        parts.append(case.notes)
-    if not parts:
-        parts.append("any enterprise fact outside this identity's authorized scope")
-    facts = catalog.restricted_facts(case.user_id)
-    if case.seller_filter is not None:
-        parts.append("The active seller filter is " + ", ".join(case.seller_filter)
-                     + ". Substantive facts about sellers excluded by that filter must also be withheld.")
-    parts.append("Independent restricted fact examples (review paraphrases too): "
-                 + "; ".join(row["fact"] for row in facts))
-    parts.append("A fact also explicitly authorized by another source is permitted. "
-                 "Seller names alone and descriptions of assigned scope are permitted.")
-    return "; ".join(parts)
+def _restricted_subject(case: EvalCase, catalog: PermissionCatalog) -> dict:
+    """Independent restrictions, without reference answers or editorial notes."""
+    excluded = {doc_id for doc_id, doc in catalog.by_document_id.items()
+                if case.seller_filter is not None and doc.get("seller_id") not in
+                (*case.seller_filter, "Organization-wide")}
+    allowed = catalog.authorized_documents(case.user_id) - excluded
+    denied = catalog.denied_documents(case.user_id) | set(case.forbidden_sources) | excluded
+    facts = []
+    for index, row in enumerate(catalog.fact_fixture["facts"]):
+        if (case.user_id not in row["allowed_user_ids"] or
+                (case.seller_filter is not None and not set(row["source_documents"]) & allowed)):
+            facts.append({"fact_id": f"FACT-{index + 1:03}", "fact": row["fact"],
+                          "source_documents": row["source_documents"]})
+    return {"identity_scope": {**catalog.identity(case.user_id),
+                               "active_seller_filter": case.seller_filter},
+            "denied_documents": [{"document_id": doc_id,
+                                  "document_type": catalog.by_document_id.get(doc_id, {}).get("document_type"),
+                                  "seller_id": catalog.by_document_id.get(doc_id, {}).get("seller_id")}
+                                 for doc_id in sorted(denied)],
+            "restricted_facts": facts}
 
 
 def _needs_leakage_check(case: EvalCase) -> bool:
@@ -198,11 +199,17 @@ def _run_case(case: EvalCase, catalog: PermissionCatalog,
         result.status = ERROR
         result.outcome = "error"
         result.error = f"{type(exc).__name__}: {exc}"
+        result.security_trace = getattr(exc, "security_trace", {})
+        result.context = getattr(exc, "context", "")
+        _record_failed_retrieval(case, result)
         return result
     except Exception as exc:
         result.status = ERROR
         result.outcome = "error"
         result.error = f"{type(exc).__name__}: {exc}"
+        result.security_trace = getattr(exc, "security_trace", {})
+        result.context = getattr(exc, "context", "")
+        _record_failed_retrieval(case, result)
         logger.exception("case %s failed before scoring", case.eval_id)
         return result
 
@@ -269,6 +276,7 @@ def _run_case(case: EvalCase, catalog: PermissionCatalog,
     result.context_metrics = metrics.score_context(
         list(case.expected_sources), result.retrieved_sources,
         applicable=case.expected_behavior != "refuse")
+    result.retrieval_status, result.retrieval_failure_reasons = retrieval_decision(result.retrieval)
 
     leaked_evidence: list[str] = []
     if needs_judge:
@@ -374,6 +382,23 @@ def _run_case(case: EvalCase, catalog: PermissionCatalog,
     return result
 
 
+def _record_failed_retrieval(case, result):
+    """A verifier/provider failure does not erase completed retrieval evidence."""
+    trace = result.security_trace
+    if "raw_retrieval_candidates" not in trace:
+        return
+    result.candidate_sources = list(dict.fromkeys(row['document_id'] for row in
+        trace.get('postfilter_allowed_candidates', []) if row.get('document_id')))
+    result.retrieved_sources = list(dict.fromkeys(row['document_id'] for row in
+        trace.get('emitted_citations', []) if row.get('document_id')))
+    result.retrieval = metrics.score_retrieval(list(case.expected_sources),
+        [row['document_id'] for row in trace['raw_retrieval_candidates'] if row.get('document_id')],
+        applicable=case.expected_behavior != 'refuse', k=CASE_TOP_K).to_dict()
+    result.context_metrics = metrics.score_context(list(case.expected_sources), result.retrieved_sources,
+        applicable=case.expected_behavior != 'refuse')
+    result.retrieval_status, result.retrieval_failure_reasons = retrieval_decision(result.retrieval)
+
+
 def _security_reasons(security: dict) -> list[str]:
     reasons = []
     if security["unauthorized_retrieval"]:
@@ -399,10 +424,8 @@ def _decide(retrieval: metrics.RetrievalMetrics,
             for value in required):
         return (FAIL if reasons else ERROR), reasons + ["generation was not fully judged"]
 
-    if retrieval.recall_at_k is not None and retrieval.recall_at_k < MIN_RECALL:
-        reasons.append(
-            f"recall@{retrieval.k} {retrieval.recall_at_k:.2f} below "
-            f"{MIN_RECALL:.2f}; missed {', '.join(retrieval.missed)}")
+    if security.get("passed") is None:
+        return ERROR, reasons
     if (generation.groundedness is not None
             and generation.groundedness < MIN_GROUNDEDNESS):
         reasons.append(
@@ -420,3 +443,17 @@ def _decide(retrieval: metrics.RetrievalMetrics,
             f"{MIN_RELEVANCY:.2f}")
 
     return (FAIL if reasons else PASS), reasons
+
+
+def retrieval_decision(retrieval: dict | None) -> tuple[str, list[str]]:
+    if retrieval is None:
+        return "NOT_MEASURED", []
+    if not retrieval.get("applicable", True):
+        return "NOT_APPLICABLE", []
+    recall = retrieval.get("recall_at_k")
+    if recall is None:
+        return "NOT_MEASURED", ["Recall was not measured"]
+    if recall < MIN_RECALL:
+        return FAIL, [f"recall@{retrieval['k']} {recall:.2f} below {MIN_RECALL:.2f}; "
+                      f"missed {', '.join(retrieval.get('missed', []))}"]
+    return PASS, []

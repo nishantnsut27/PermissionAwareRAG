@@ -64,7 +64,9 @@ API_BODY_TIMEOUT_S = _float("API_BODY_TIMEOUT_S", 5.0)
 API_HEADER_TIMEOUT_S = _float("API_HEADER_TIMEOUT_S", 5.0)
 API_REQUEST_TIMEOUT_S = _float("API_REQUEST_TIMEOUT_S", 90.0)
 API_REQUESTS_PER_MINUTE = _int("API_REQUESTS_PER_MINUTE", 30)
-API_TOKENS_PER_MINUTE = _int("API_TOKENS_PER_MINUTE", 30000)
+API_TOKENS_PER_MINUTE = _int("API_TOKENS_PER_MINUTE", 60000)
+VERIFICATION_TIMEOUT_S = 30
+VERIFICATION_MAX_TOKENS = 2400
 
 # This flag can turn detailed report routes off. It never grants access.
 EVALUATION_REPORTS_ENABLED = os.getenv(
@@ -74,7 +76,8 @@ EVALUATION_REPORTS_ENABLED = os.getenv(
 @dataclass(frozen=True)
 class AnsweringConfig:
     top_k: int = _int("ANSWER_TOP_K", 5)
-    candidate_pool: int = _int("ANSWER_CANDIDATE_POOL", 20)
+    candidate_pool: int = _int("ANSWER_CANDIDATE_POOL", 40)
+    max_context_chunks: int = 12
     multi_seller_retrieval: str = os.getenv("MULTI_SELLER_RETRIEVAL", "global").strip().lower()
     # Provisional threshold. No held-out quality calibration has been run.
     rerank_threshold: float = _float("RERANK_SCORE_THRESHOLD", 0.20)

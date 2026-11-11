@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import evaluationSummary from '../fixtures/evaluation-summary.json' with { type: 'json' };
+import evaluationSummary from '../fixtures/evaluation-current-summary.json' with { type: 'json' };
 const user = { user_id: 'U-001', name: 'Aditya Verma', role: 'Account Manager', department: 'Business', seller_scope: ['S001', 'S003'] };
 const vikram = { ...user, user_id: 'U-003', name: 'Vikram Singh', role: 'Engineer', department: 'Engineering' };
 test.beforeEach(async ({ page }) => {
@@ -64,12 +64,23 @@ test('login, scoped chat, source inspection, refresh restoration, theme and eval
   await page.screenshot({ path: testInfo.outputPath('answer-dark.png'), fullPage: true });
   await openMenu(page); await page.getByRole('button', { name: 'Evaluation overview' }).click();
   await expect(page.getByText('saved-report')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Evaluation complete with errors' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Latest results by case' })).toBeVisible();
+  await expect(page.getByText(/Latest recorded outcomes across 3 saved runs/)).toBeVisible();
   const scorecards = await page.locator('.eval-scorecards').boundingBox();
   const completion = await page.getByRole('region', { name: 'Evaluation results summary' }).boundingBox();
   expect(completion!.y).toBeGreaterThanOrEqual(scorecards!.y + scorecards!.height);
-  await expect(page.getByRole('region', { name: 'Evaluation results summary' })).toContainText('90 of 90 cases recorded');
-  await expect(page.getByRole('row', { name: 'All selected cases 90 / 90 76.7% 69 19 2 0' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Evaluation results summary' })).toContainText('23 of 23 cases recorded');
+  await expect(page.getByRole('row', { name: 'All selected cases 23 / 23 60.9% 14 9 0 0' })).toBeVisible();
+  const downloaded = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download summary JSON' }).click();
+  const download = await downloaded;
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream!) chunks.push(chunk);
+  const summary = JSON.parse(Buffer.concat(chunks).toString());
+  expect(summary.report_kind).toBe('latest_by_case');
+  expect(summary.measurements.reliability).toMatchObject({ selected: 23, passed: 14, failed: 9, errors: 0 });
+  expect(summary.results).toBeUndefined();
   await page.screenshot({ path: testInfo.outputPath('evaluation-dark.png'), fullPage: true });
   await toggleTheme(page);
   await page.screenshot({ path: testInfo.outputPath('evaluation-light.png'), fullPage: true });

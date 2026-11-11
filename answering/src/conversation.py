@@ -21,7 +21,8 @@ class Turn:
     content: str
 
 
-def parse_history(raw, cfg: config.AnsweringConfig | None = None) -> list[Turn]:
+def parse_history(raw, cfg: config.AnsweringConfig | None = None,
+                  *, user_only: bool = False) -> list[Turn]:
     """Validate and bound caller-supplied history. Unknown roles are dropped."""
     cfg = cfg or config.DEFAULT_ANSWERING
     if not raw:
@@ -47,7 +48,9 @@ def parse_history(raw, cfg: config.AnsweringConfig | None = None) -> list[Turn]:
         if content:
             turns.append(Turn(role, content[:cfg.max_history_chars]))
 
-    turns = turns[-cfg.max_history_turns:]
+    if user_only:
+        turns = [turn for turn in turns if turn.role == "user"]
+    turns = turns[-cfg.max_history_turns:] if cfg.max_history_turns else []
     budget = cfg.max_history_chars
     kept: list[Turn] = []
     for turn in reversed(turns):

@@ -27,6 +27,9 @@ jobs:
       - run: python -B scripts/run_offline_suite.py security_tests.targeted_evaluation_retry
       - run: python -B scripts/run_offline_suite.py security_tests.jina_rotation
       - run: python -B scripts/run_offline_suite.py security_tests.groq_rotation
+      - run: python -B scripts/run_offline_suite.py security_tests.remediation_v12
+      - run: python -B scripts/run_offline_suite.py security_tests.execution_errors
+      - run: python -B scripts/run_offline_suite.py security_tests.current_evaluation
       - run: python -m evaluation.runner --validate-only
   frontend:
     runs-on: ubuntu-latest

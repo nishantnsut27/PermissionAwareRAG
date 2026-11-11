@@ -405,7 +405,7 @@ The React workspace exposes the permission-aware workflow:
 
 ## Evaluation
 
-The repository contains a golden evaluation dataset with 60 cases covering:
+The repository contains a reviewed v1.2 golden evaluation dataset with 90 cases covering:
 
 - Authorized factual questions
 - Multi-document retrieval
@@ -417,30 +417,33 @@ The repository contains a golden evaluation dataset with 60 cases covering:
 - Ambiguous questions
 - Prompt-injection attempts
 
-The latest complete saved run is:
+The dashboard defaults to [the latest results by case](evaluation/runs/latest-cases-20261111.json), saved on 11 November 2026. It combines the latest recorded outcome for each of 23 targeted cases across three provider-backed runs. Earlier passing cases keep their original run context; this is not a new 90-case baseline. Individual reports remain selectable.
 
-`evaluation/runs/full-20260921-v2.json`
-
-### Latest Saved Run
-
-| Metric | Result |
+| Metric | Current 23-case snapshot |
 |---|---:|
-| Cases | 60 |
-| Passed | 48 |
-| Failed | 12 |
-| Errors | 0 |
-| Recall@K | 86.67% |
-| Precision@K | 50.98% |
-| MRR | 74.63% |
-| Groundedness | 97.95% |
-| Answer relevancy | 98.59% |
-| Answer correctness | 83.05% |
-| Authorization accuracy | 98.33% |
-| Unauthorized retrieval rate | 0.00% |
-| Answer leakage rate | 4.55% |
-| Prompt-injection blocked | 100% |
+| Passed | 14 |
+| Failed | 9 |
+| Errors / pending | 0 / 0 |
+| Recall@5 | 88.04% |
+| Precision@5 | 27.83% |
+| MRR | 80.07% |
+| Groundedness | 100.00% |
+| Answer relevancy | 98.26% |
+| Answer correctness | 67.39% |
+| Security pass rate | 100.00% |
+| Answer leakage rate | 0.00% |
 
-These are historical measurements from the earlier corpus and evaluator. They are not a benchmark of the current implementation. That run measured varying-size final context under the retrieval metric names, and reviewed only selected answers for leakage. The current evaluator reviews every returned answer, including refusals, against independent fact examples and denied subjects. It records fixed-K ranked candidate metrics (short lists count missing precision slots as misses), final context coverage/precision, canonical completion outcome, and finish reason separately. Partial completions retain quality scores but cannot pass. A fresh provider-backed benchmark remains to be run.
+All 23 cases have measured quality scores. The latest execution covered 13 cases once each: 4 PASS, 9 FAIL, 0 ERROR. Failures were preserved with their causes and were not repeatedly retried. See the [before/after comparison and failure explanations](evaluation/runs/remaining-and-failed-20261111-summary.json).
+
+Current PASS/FAIL measures answer quality and security. Retrieval remains a separate diagnostic. Thresholds are groundedness 70%, correctness 60%, and relevancy 60%; retrieval Recall@5 has a separate 50% threshold. The historical 90-case v1.1 baseline (70 PASS / 20 FAIL) used combined retrieval/answer/security status and earlier expectations, so its pass rate is not directly comparable.
+
+The saved snapshot preserves source-report hashes and per-case provenance. It can be rebuilt for a new publication with `scripts/publish_evaluation_snapshot.py`; it reads reports only and cannot be resumed as a live evaluation. Publish a new snapshot with a new name and the original report IDs:
+
+```powershell
+.\.venv\Scripts\python.exe -B scripts/publish_evaluation_snapshot.py --name latest-cases-20261111 --source runs/failed-cases-live-20261106-targeted.json --source runs/execution-fixes-20261106-targeted.json --source runs/failed-cases-rerun-20261111-targeted.json
+```
+
+The existing snapshot is preserved; choose a new `--name` for a later publication.
 
 The evaluation dashboard reads saved results and does not automatically start a quota-consuming evaluation run from the web UI.
 

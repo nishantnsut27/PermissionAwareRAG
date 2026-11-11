@@ -24,7 +24,7 @@ REFUSAL_MESSAGE = (
     "that can answer this request."
 )
 
-MAX_TOP_K = 20
+MAX_TOP_K = 40
 CANDIDATE_MULTIPLIER = 4
 MAX_CANDIDATES = 40
 
@@ -66,7 +66,7 @@ def _resolve(user: User | str) -> User:
 
 def authorized_retrieve(user: User | str, query: str, top_k: int = 5,
                         request_id: str | None = None,
-                        requested_sellers=None) -> AccessResponse:
+                        requested_sellers=None, organization_only=False) -> AccessResponse:
     identity = _resolve(user)
     if not isinstance(query, str) or not query.strip():
         raise ValueError("query must be a non-empty string")
@@ -76,12 +76,18 @@ def authorized_retrieve(user: User | str, query: str, top_k: int = 5,
     # Raises for a malformed identity or a request outside the authorized
     # scope, rather than issuing a widened query.
     scope = _engine.get_authorized_scope(identity, requested_sellers)
+    if organization_only:
+        scope = {"must": [scope, {"seller_id": {"value": "Organization-wide"}}]}
     candidates = phase3_retrieve(
         query,
         top_k=min(max(top_k * CANDIDATE_MULTIPLIER, 10), MAX_CANDIDATES),
         filters=scope,
     )
     allowed, denied = _engine.authorize_chunks(identity, candidates, request_id)
+    allowed = [chunk for chunk in allowed
+               if (not organization_only or chunk.metadata.get("seller_id") == "Organization-wide")
+               and (requested_sellers is None or chunk.metadata.get("seller_id") in
+                    (*requested_sellers, "Organization-wide"))]
     selected = allowed[:top_k]
 
     for chunk in selected:
@@ -121,7 +127,8 @@ def _chunk_ref(chunk) -> dict:
 
 
 def authorized_retrieve_balanced(user: User, query: str, sellers: list[str],
-                                candidate_limit: int, request_id: str) -> AccessResponse:
+                                candidate_limit: int, request_id: str,
+                                include_organization: bool = False) -> AccessResponse:
     """Seller-only partitions; no caller-supplied value can grant a seller.
 
     Candidate quotas sum to the answering pool (and never exceed the existing
@@ -138,10 +145,11 @@ def authorized_retrieve_balanced(user: User, query: str, sellers: list[str],
     if (type(candidate_limit) is not int
             or not 1 <= candidate_limit <= MAX_CANDIDATES):
         raise ValueError("invalid balanced candidate limit")
-    quotas = {seller: candidate_limit // len(sellers) + (index < candidate_limit % len(sellers))
-              for index, seller in enumerate(sellers)}
+    groups = [*sellers, *(["Organization-wide"] if include_organization else [])]
+    quotas = {seller: candidate_limit // len(groups) + (index < candidate_limit % len(groups))
+              for index, seller in enumerate(groups)}
     partitions = {
-        seller: ({"must": [_engine.get_authorized_scope(identity, [seller]),
+        seller: ({"must": [_engine.get_authorized_scope(identity, None if seller == "Organization-wide" else [seller]),
                            {"seller_id": {"value": seller}}]}, limit)
         for seller, limit in quotas.items()}
     retrieved, revision = retrieve_partitioned(query, partitions)

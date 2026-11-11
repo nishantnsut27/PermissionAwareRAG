@@ -115,13 +115,17 @@ def _reserved_tokens(payload: dict) -> int:
                      if isinstance(conversation, list) else 0)
     input_chars = min(len(query), config.DEFAULT_ANSWERING.max_query_chars)
     input_chars += min(history_chars, config.DEFAULT_ANSWERING.max_history_chars)
-    # Context is already bounded in tokens by the context builder. Reserve it
-    # in full, plus both system prompts, bounded user/history text, framing,
-    # and the maximum output of the answer and intent calls.
+    # Reserve all three calls, including the complete context and draft read
+    # by verification. Explicit operator allowances remain authoritative.
     answer_prompt = (config.DEFAULT_ANSWERING.max_context_tokens
                      + (len(service.prompts.SYSTEM_PROMPT) + input_chars + 2048 + 2) // 3)
-    intent_prompt = (len(service.answer_scope._INTENT_SYSTEM) + input_chars + 512 + 2) // 3
-    return answer_prompt + intent_prompt + config.GROQ_MAX_TOKENS + 256
+    intent_prompt = (len(service.query_plan.PLAN_SYSTEM) + input_chars + 512 + 2) // 3
+    verification_prompt = (config.DEFAULT_ANSWERING.max_context_tokens
+                           + config.GROQ_MAX_TOKENS
+                           + service.verification.SCHEMA_RESERVATION_TOKENS
+                           + (len(service.verification.SYSTEM_PROMPT) + input_chars + 2048 + 2) // 3)
+    return (answer_prompt + intent_prompt + verification_prompt + config.GROQ_MAX_TOKENS
+            + service.query_plan.PLAN_MAX_TOKENS + config.VERIFICATION_MAX_TOKENS)
 
 
 def _charge_budget(principal, payload: dict):
@@ -680,6 +684,8 @@ class Handler(BaseHTTPRequestHandler):
                     top_k=payload.get("top_k"),
                 )
         except Exception as exc:
+            _reconcile_budget(budget_principal, reservation,
+                              getattr(exc, "security_trace", {}).get("model_usage"))
             self._reject(exc)
             return
         _reconcile_budget(budget_principal, reservation,
@@ -732,10 +738,10 @@ class Handler(BaseHTTPRequestHandler):
                                             {"reported": True, "total_tokens": 0}))
             self._emit(first)
             for event in events:
-                if event.get("type") == "done":
+                if event.get("type") in {"done", "error"}:
                     _reconcile_budget(service_principal, reservation,
                                       event.pop("_token_usage",
-                                                {"reported": True, "total_tokens": 0}))
+                                                None))
                 self._emit(event)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             logger.info("client disconnected during stream")

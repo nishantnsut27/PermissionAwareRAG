@@ -2,12 +2,15 @@ import { isRecord } from './types';
 export interface Measure { value: number | null; measured: number; applicable: number; total: number }
 export interface Counts { selected: number; recorded: number; passed: number; failed: number; errors: number; pending: number }
 export interface Measurements {
+  retrieval_diagnostics?: Record<string, number>;
   retrieval: Record<string, Measure>; context: Record<string, Measure>; quality: Record<string, Measure>; security: Record<string, Measure>;
   reliability: Counts & { completed: number; partial: number; pipeline_failed: number; unjudged: number; dependency_blocked: number; degraded_retrieval: number; degradation_measured: number };
   categories: Record<string, Counts>; capabilities: Record<string, Counts>; failure_categories: Record<string, number>;
   latency: { p50_ms: number | null; p95_ms: number | null; measured: number; total: number };
 }
 export interface ReportOption {
+  report_kind?: 'run' | 'latest_by_case'; source_run_count?: number;
+  scoring_policy?: string; status_semantics?: string;
   report_id: string; run_id?: string; started_at?: string; generated_at?: string;
   status?: 'Legacy' | 'Incomplete' | 'Complete'; dataset_version?: string; selected_cases?: number; total_cases?: number;
 }
@@ -23,6 +26,7 @@ export function evaluationState(data: EvaluationSummary) {
   const active = ['starting', 'waiting', 'evaluating'].includes(data.phase || '');
   const finished = !active && !data.stop_reason && (data.selection_complete === true || data.status === 'Complete'
     || (data.phase === 'finished' && selected > 0 && recorded === selected && (!r || r.pending === 0)));
+  if (finished && data.report_kind === 'latest_by_case') return { finished, label: r?.errors ? 'Saved with errors' : 'Saved', heading: 'Latest results by case', tone: r?.errors ? 'complete-with-errors' : 'complete' };
   if (finished) return { finished, label: r?.errors ? 'Complete with errors' : 'Complete',
     heading: r?.errors ? 'Evaluation complete with errors' : 'Evaluation complete', tone: r?.errors ? 'complete-with-errors' : 'complete' };
   if (active) return { finished, label: 'Running', heading: 'Evaluation results', tone: 'running' };
@@ -38,9 +42,11 @@ const string = (x: unknown): string | undefined => x == null ? undefined : typeo
 const boolean = (x: unknown): boolean | undefined => x === undefined ? undefined : typeof x === 'boolean' ? x : invalid();
 function option(raw: unknown, requireId = true): Partial<ReportOption> {
   const x = record(raw), report_id = string(x.report_id), status = string(x.status);
+  const report_kind = string(x.report_kind);
+  if (report_kind && !['run', 'latest_by_case'].includes(report_kind)) invalid();
   if (requireId && (!report_id || !/^(results\.json|runs\/[A-Za-z0-9][A-Za-z0-9_.-]*\.json)$/.test(report_id))) invalid();
   if (status && !['Legacy', 'Incomplete', 'Complete'].includes(status)) invalid();
-  return { report_id, status: status as ReportOption['status'], run_id: string(x.run_id), started_at: string(x.started_at), generated_at: string(x.generated_at),
+  return { report_id, report_kind: report_kind as ReportOption['report_kind'], source_run_count: count(x.source_run_count), status: status as ReportOption['status'], scoring_policy: string(x.scoring_policy), status_semantics: string(x.status_semantics), run_id: string(x.run_id), started_at: string(x.started_at), generated_at: string(x.generated_at),
     dataset_version: string(x.dataset_version), selected_cases: count(x.selected_cases), total_cases: count(x.total_cases) };
 }
 function measure(raw: unknown): Measure {
@@ -62,6 +68,7 @@ function map<T>(raw: unknown, parse: (x: unknown) => T): Record<string, T> {
 export function measurements(raw: unknown): Measurements {
   const x = record(raw), r = record(x.reliability || {}), l = record(x.latency || {});
   return { retrieval: map(x.retrieval, measure), context: map(x.context, measure), quality: map(x.quality, measure), security: map(x.security, measure),
+    retrieval_diagnostics: map(x.retrieval_diagnostics, value => count(value)),
     categories: map(x.categories, counts), capabilities: map(x.capabilities, counts), failure_categories: map(x.failure_categories, value => count(value)),
     reliability: { ...counts(r), completed: count(r.completed), partial: count(r.partial), pipeline_failed: count(r.pipeline_failed), unjudged: count(r.unjudged),
       dependency_blocked: count(r.dependency_blocked), degraded_retrieval: count(r.degraded_retrieval), degradation_measured: count(r.degradation_measured) },

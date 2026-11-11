@@ -46,6 +46,9 @@ def rerank_sellers(query: str, chunks: list, sellers: list[str],
                 seen.add(id(chunk))
                 items.append((chunk, score))
         outcome.items = items
+        outcome.scored_items = [pair for pair in outcome.scored_items
+                                if id(pair[0]) in originals
+                                and pair[0].metadata.get("seller_id") == seller]
         return outcome
 
     active = [seller for seller in sellers if groups[seller]]
@@ -65,5 +68,7 @@ def rerank_sellers(query: str, chunks: list, sellers: list[str],
     tails = [pair for seller in supported for pair in outcomes[seller].items[1:]]
     tails.sort(key=lambda pair: (pair[1] is None, -(pair[1] or 0.0)))
     applied = bool(outcomes) and all(outcome.applied for outcome in outcomes.values())
+    scored = [pair for seller in active for pair in outcomes[seller].scored_items]
+    scored.sort(key=lambda pair: (pair[1] is None, -(pair[1] or 0.0)))
     return reranker.RerankOutcome(heads + tails, applied,
-                                  None if applied else "seller reranking degraded")
+                                  None if applied else "seller reranking degraded", scored)

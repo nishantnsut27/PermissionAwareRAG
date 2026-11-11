@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Evaluation, { metricText } from '../src/Evaluation';
 import { evaluationState, parseEvaluation } from '../src/evaluationData';
 import completedReport from './fixtures/evaluation-summary.json';
+import currentReport from './fixtures/evaluation-current-summary.json';
 import * as api from '../src/api';
 
 const stored = { has_results: true, run_id: 'run-new', report_id: 'runs/new.json', status: 'Incomplete' as const,
@@ -19,6 +20,43 @@ function ui(route = '/evaluation') {
 }
 afterEach(() => { focusManager.setFocused(undefined); vi.useRealTimers(); vi.restoreAllMocks(); });
 describe('saved evaluation dashboard', () => {
+  it('shows the current 23-case snapshot with provenance, metrics and preserved failures', async () => {
+    const data = parseEvaluation(currentReport);
+    vi.spyOn(api, 'evaluation').mockResolvedValue(data);
+    ui();
+    await screen.findByRole('heading', { name: 'Latest results by case' });
+    const summary = screen.getByRole('region', { name: 'Evaluation results summary' });
+    expect(summary).toHaveTextContent('23 of 23 cases recorded');
+    expect(summary).toHaveTextContent('Latest recorded outcomes across 3 saved runs');
+    expect(summary).toHaveTextContent('not a new full-suite evaluation');
+    expect(within(summary).getByRole('img')).toHaveAccessibleName('14 passed, 9 failed, 0 errors, 0 pending');
+    expect(screen.getByRole('row', { name: 'All selected cases 23 / 23 60.9% 14 9 0 0' })).toBeVisible();
+    expect(screen.getAllByText('67.4%').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('88.0%').length).toBeGreaterThan(0);
+    expect(data.measurements?.quality.groundedness.value).toBe(1);
+    expect(data.report_kind).toBe('latest_by_case');
+    expect(JSON.stringify(data)).not.toContain('case_provenance');
+    expect(data.available_reports?.some(r => r.selected_cases === 90)).toBe(true);
+  });
+  it('separates v6 answer status from retrieval diagnostics and names the policy', async () => {
+    const data = parseEvaluation({ ...completedReport, status_semantics: 'answer_security',
+      scoring_policy: 'answer_security_v6_retrieval_diagnostic',
+      measurements: { ...completedReport.measurements, retrieval_diagnostics: { pass: 24, fail: 8, not_applicable: 0, not_measured: 0, recorded: 32 } } });
+    vi.spyOn(api, 'evaluation').mockResolvedValue(data);
+    ui();
+    await screen.findByRole('heading', { name: 'Retrieval diagnostics' });
+    expect(screen.getByText(/24 passed · 8 failed/)).toBeVisible();
+    expect(screen.getByText(/Scoring policy: answer_security_v6/)).toBeVisible();
+    expect(screen.getByText(/Answer\/security results/)).toBeVisible();
+    expect(screen.getByText(/Recall@5 ≥50% is a separate retrieval diagnostic/)).toBeVisible();
+  });
+  it('labels stored historical combined statuses without applying v6', async () => {
+    vi.spyOn(api, 'evaluation').mockResolvedValue(parseEvaluation(completedReport));
+    ui();
+    await screen.findByText(/Historical statuses are preserved as recorded/);
+    expect(screen.queryByRole('heading', { name: 'Retrieval diagnostics' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Historical combined thresholds/)).toBeVisible();
+  });
   it('shows the finished full run, remaining errors, latest metrics and matrix totals', async () => {
     const data = parseEvaluation(completedReport);
     vi.spyOn(api, 'evaluation').mockResolvedValue(data);

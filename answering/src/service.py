@@ -11,7 +11,8 @@ import re
 import sys
 import time
 import uuid
-from dataclasses import dataclass, field
+from contextvars import ContextVar
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -22,12 +23,19 @@ from access_control.src.retrieval import authorized_retrieve, authorized_retriev
 from access_control.src.users import USERS, User
 from indexing.src.embeddings import EmbeddingError
 
-from . import answer_scope, config, context, conversation, identity, llm, prompts, reranker, seller_balanced
-from .deadline import check_deadline, retry_snapshot
+from . import answer_scope, config, context, conversation, evidence, identity, llm, prompts, query_plan, reranker, seller_balanced, verification
+from .deadline import check_deadline, request_deadline, retry_snapshot
 
 logger = logging.getLogger(__name__)
 
 _engine = PermissionEngine()
+_request_diagnostics = ContextVar("answer_request_diagnostics", default=None)
+
+
+def _diagnostics(trace, context_block=""):
+    sink = _request_diagnostics.get()
+    if sink is not None:
+        sink.update(trace=trace, context=context_block)
 
 
 class AnsweringError(RuntimeError):
@@ -155,6 +163,8 @@ def _refusal(request_id: str, user: User, query: str, started: float,
              **stats) -> AnswerResponse:
     check_deadline()
     trace = dict(security_trace or {})
+    trace.setdefault("verification", {"status": "not_required", "reason": "no_eligible_context"})
+    trace.setdefault("generation", {"finish_reason": "not_started"})
     if "intent_usage" in trace:
         rows = trace.get("intent_usage") or []
         trace["model_usage"] = (_usage_summary(*rows) if rows else
@@ -216,6 +226,8 @@ class _Prepared:
     security_trace: dict = field(default_factory=dict)
     coverage_sellers: list[str] = field(default_factory=list)
     portfolio_only: bool = False
+    plan: query_plan.QueryPlan | None = None
+    included_chunks: list = field(default_factory=list)
 
 
 def _chunk_ref(chunk, score=None) -> dict:
@@ -226,219 +238,180 @@ def _chunk_ref(chunk, score=None) -> dict:
             **({"score": score} if score is not None else {})}
 
 
+
 def _context_spans(context_block: str, sources: list, chunks: list) -> list[dict]:
     spans = []
-    cursor = 0
     for source in sources:
         for span in source.spans:
-            start = context_block.find(span["text"], cursor)
+            header = context_block.find(f"Evidence [{span['evidence_id']}]")
+            start = context_block.find(span["text"], header) if header >= 0 else -1
             if start < 0:
-                continue
-            end = start + len(span["text"])
-            spans.append({**span, "start": start, "end": end})
-            cursor = end
-    return spans
+                raise AnswerUnavailableError("Context provenance is incomplete.")
+            spans.append({**span, "start": start, "end": start + len(span["text"])})
+    return sorted(spans, key=lambda span: span["start"])
+
+
+def _in_scope(chunk, plan, sellers):
+    seller = chunk.metadata.get("seller_id")
+    if seller == "Organization-wide":
+        return plan.scope in {"organization", "mixed", "general"}
+    if plan.scope == "organization" or seller not in sellers:
+        return False
+    # A whole seller passage that mentions another account is omitted. Never
+    # rewrite mixed passages or move their facts across seller provenance.
+    return answer_scope.safe_passage(chunk, [seller])
 
 
 def _prepare(principal, query, conversation_history, seller_filter, top_k,
              request_id, cfg) -> tuple[_Prepared | None, AnswerResponse | None]:
-    """Run the whole permission-aware pipeline up to prompt assembly.
-
-    Returns (prepared, None) when there is authorized context to answer from,
-    or (None, refusal) otherwise. Both the buffered and the streaming entry
-    points go through here, so authorization exists in exactly one place.
-    """
     started = time.time()
     user = _resolve_identity(principal)
     question = _clean_query(query, cfg)
-    if top_k is not None and (isinstance(top_k, bool) or not isinstance(top_k, int)
-                              or not 1 <= top_k <= cfg.candidate_pool):
+    if top_k is not None and (type(top_k) is not int or not 1 <= top_k <= cfg.candidate_pool):
         raise ValueError("top_k must be an integer in the configured range")
-    turns = conversation.parse_history(conversation_history, cfg)
-    intent_usage = []
-    top_k = cfg.top_k if top_k is None else top_k
-    if seller_filter is not None:
-        if (not isinstance(seller_filter, list) or len(seller_filter) > 4
-                or any(not isinstance(value, str) for value in seller_filter)
-                or len(set(seller_filter)) != len(seller_filter)
-                or any(value not in {"S001", "S002", "S003", "S004"}
-                       for value in seller_filter)):
-            raise ValueError("seller_filter must be a unique list of at most four seller IDs")
-
-    # Scope comes from the identity only. seller_filter can narrow it, never
-    # widen it; a request with no authorized overlap refuses immediately.
+    cfg = replace(cfg, top_k=cfg.top_k if top_k is None else top_k)
+    turns = conversation.parse_history(conversation_history, cfg, user_only=True)
+    if seller_filter is not None and (
+            not isinstance(seller_filter, list) or len(seller_filter) > 4
+            or any(not isinstance(value, str) for value in seller_filter)
+            or len(set(seller_filter)) != len(seller_filter)
+            or any(value not in answer_scope.SELLER_ALIASES for value in seller_filter)):
+        raise ValueError("seller_filter must be a unique list of at most four seller IDs")
     try:
         sellers = _engine.effective_seller_scope(user, seller_filter)
     except IdentityError as exc:
         raise InvalidUserError(str(exc)) from exc
     if sellers is None:
-        logger.info("request=%s user=%s status=scope_denied", request_id,
-                    user.user_id)
         return None, _refusal(request_id, user, question, started, [])
 
-    intent_started = time.monotonic()
+    planning_started = time.monotonic()
+    intent_usage = []
+    _diagnostics({"request_id": request_id, "intent_usage": intent_usage,
+                  "generation": {"finish_reason": "not_started"},
+                  "verification": {"status": "not_started"}})
     try:
-        portfolio_only = answer_scope.is_portfolio(question, turns, intent_usage)
+        plan, turns = query_plan.resolve(question, turns, sellers, cfg, intent_usage)
     except answer_scope.IntentUnavailableError as exc:
         raise AnswerUnavailableError(str(exc)) from exc
-    if portfolio_only and not sellers:
-        return None, _refusal(request_id, user, question, started, sellers,
-                              security_trace={"intent_usage": intent_usage})
-    # Conversation can resolve the topic, never the account inventory. Remove
-    # assistant assertions and prior questions naming excluded sellers before
-    # retrieval/generation; use the current principal on every follow-up.
-    if portfolio_only:
-        turns = [turn for turn in turns if turn.role == "user"
-                 and answer_scope.mentioned_sellers(turn.content) <= set(sellers)]
-    scoped_question = (answer_scope.safe_question(question, sellers)
-                       if portfolio_only else question)
-    search_text = conversation.retrieval_query(turns, scoped_question, cfg)
-    coverage_sellers = (list(sellers) if portfolio_only else
-                        seller_balanced.relevant_sellers(question, sellers)
-                        if cfg.multi_seller_retrieval == "seller_balanced" else [])
+    trace = {"intent_usage": intent_usage, "query_plan": plan.to_dict(),
+             "effective_search_query": plan.effective_query,
+             "answer_scope": plan.scope, "request_id": request_id,
+             "stage_latency_ms": {"planning": round((time.monotonic() - planning_started) * 1000)},
+             "reranked_items": [], "reranker_scores_before_threshold": [],
+             "final_gate_denied": [], "context_spans": [], "emitted_citations": [],
+             "evidence_omissions": []}
+    _diagnostics(trace)
+    searched = list(plan.searched_sellers)
+    portfolio_only = plan.portfolio and plan.scope == "seller"
+    coverage_sellers = searched if plan.scope in {"seller", "mixed"} else []
+    if plan.scope == "seller" and not searched:
+        return None, _refusal(request_id, user, question, started, sellers, security_trace=trace)
 
     retrieval_started = time.monotonic()
     try:
         if coverage_sellers:
-            access = authorized_retrieve_balanced(
-                user, search_text, coverage_sellers, cfg.candidate_pool, request_id)
+            access = authorized_retrieve_balanced(user, plan.effective_query, searched,
+                        cfg.candidate_pool, request_id, include_organization=plan.scope == "mixed")
         else:
-            access = authorized_retrieve(
-                user, search_text,
-                top_k=cfg.candidate_pool,
-                request_id=request_id,
-                requested_sellers=seller_filter,
-            )
+            access = authorized_retrieve(user, plan.effective_query, top_k=cfg.candidate_pool,
+                        request_id=request_id, requested_sellers=seller_filter,
+                        organization_only=plan.scope == "organization")
     except ScopeDeniedError:
-        return None, _refusal(request_id, user, question, started, [],
-                              security_trace={"intent_usage": intent_usage})
+        return None, _refusal(request_id, user, question, started, sellers, security_trace=trace)
     except IdentityError as exc:
         raise InvalidUserError(str(exc)) from exc
     except EmbeddingError as exc:
-        logger.error("request=%s embedding failure: %s", request_id, exc)
         raise RetrievalUnavailableError(str(exc)) from exc
     except TimeoutError:
         raise
     except Exception as exc:
-        logger.error("request=%s retrieval failure: %s", request_id, exc)
         raise RetrievalUnavailableError(str(exc)) from exc
 
-    authorized_chunks = access.chunks
-    stage_trace = dict(access.stage_trace)
-    stage_trace["intent_usage"] = intent_usage
-    stage_trace["answer_scope"] = "portfolio" if portfolio_only else "document_policy"
-    if portfolio_only:
-        stage_trace["portfolio_passage_dropped"] = [
-            _chunk_ref(chunk) for chunk in authorized_chunks
-            if not answer_scope.safe_passage(chunk, sellers)]
-        authorized_chunks = [chunk for chunk in authorized_chunks
-                             if answer_scope.safe_passage(chunk, sellers)]
-    stage_trace.setdefault("retrieval_path", "global")
+    stage_trace = {**access.stage_trace, **trace}
+    _diagnostics(stage_trace)
+    stage_trace.setdefault("retrieval_path", "organization" if plan.scope == "organization" else "global")
+    stage_trace["stage_latency_ms"]["retrieval_and_authorization"] = round(
+        (time.monotonic() - retrieval_started) * 1000)
+    stats = {"candidates": len(access.chunks) + access.withheld_count,
+             "authorized": len(access.chunks), "withheld": access.withheld_count}
+    candidate_ids = list(dict.fromkeys(chunk.document_id for chunk in access.chunks if chunk.document_id))
+    authorized_chunks = []
+    for chunk in access.chunks:
+        if _engine.can_access(user, chunk.metadata).allow and _in_scope(chunk, plan, searched):
+            authorized_chunks.append(chunk)
+        else:
+            stage_trace["evidence_omissions"].append({
+                **_chunk_ref(chunk), "reason": "authorization_or_mixed_seller_scope"})
+    stage_trace["portfolio_passage_dropped"] = [
+        row for row in stage_trace["evidence_omissions"] if row["reason"] == "authorization_or_mixed_seller_scope"]
     if coverage_sellers:
         stage_trace["seller_coverage"] = {seller: False for seller in coverage_sellers}
-    stage_trace["stage_latency_ms"] = {
-        "answer_intent": round((retrieval_started - intent_started) * 1000),
-        "retrieval_and_authorization": round((time.monotonic() - retrieval_started) * 1000)
-    }
-    stage_trace["request_id"] = request_id
-    stage_trace["reranked_items"] = []
-    stage_trace["final_gate_denied"] = []
-    stage_trace["context_spans"] = []
-    stage_trace["emitted_citations"] = []
-    stats = {"candidates": len(access.chunks) + access.withheld_count,
-             "authorized": len(access.chunks),
-             "withheld": access.withheld_count}
-    # Ranked document ids of every chunk that survived authorization, before
-    # reranking and the context budget. Phase 7 uses this to tell an
-    # unauthorized *retrieval* apart from an unauthorized *answer*.
-    candidate_ids: list[str] = []
-    for chunk in authorized_chunks:
-        document_id = chunk.document_id or (chunk.metadata or {}).get(
-            "document_id")
-        if document_id and document_id not in candidate_ids:
-            candidate_ids.append(document_id)
-
     if not authorized_chunks:
-        logger.info("request=%s user=%s status=no_authorized_context",
-                    request_id, user.user_id)
         return None, _refusal(request_id, user, question, started, sellers,
-                              missing_sellers=coverage_sellers if portfolio_only else [],
-                              security_trace=stage_trace,
-                              **stats)
+                             candidate_document_ids=candidate_ids, security_trace=stage_trace,
+                             missing_sellers=coverage_sellers, **stats)
 
     check_deadline()
     rerank_started = time.monotonic()
     if coverage_sellers:
-        outcome = seller_balanced.rerank_sellers(
-            search_text, authorized_chunks, coverage_sellers, cfg.rerank_threshold)
+        partitions = [*coverage_sellers, *(["Organization-wide"] if plan.scope == "mixed" else [])]
+        outcome = seller_balanced.rerank_sellers(plan.effective_query, authorized_chunks,
+                                                partitions, cfg.rerank_threshold)
     else:
-        outcome = reranker.rerank(search_text, authorized_chunks,
-                                  threshold=cfg.rerank_threshold)
-    stage_trace["stage_latency_ms"]["reranking"] = round(
-        (time.monotonic() - rerank_started) * 1000)
+        outcome = reranker.rerank(plan.effective_query, authorized_chunks, threshold=cfg.rerank_threshold)
+    stage_trace["stage_latency_ms"]["reranking"] = round((time.monotonic() - rerank_started) * 1000)
     if not outcome.applied:
-        stage_trace["degraded_mode"] = ("seller_partition_fallback" if coverage_sellers
-                                         else "authorized_fusion_order")
-    stage_trace["reranked_items"] = [
-        _chunk_ref(chunk, score) for chunk, score in outcome.items]
-    selected = [(chunk, score) for chunk, score in outcome.items][:top_k]
+        stage_trace["degraded_mode"] = "authorized_fusion_order"
+    stage_trace["reranked_items"] = [_chunk_ref(chunk, score) for chunk, score in outcome.items]
+    stage_trace["reranker_scores_before_threshold"] = [
+        _chunk_ref(chunk, score) for chunk, score in outcome.scored_items]
 
-    # Final gate. Reranking reorders authorized material and must never be able
-    # to reintroduce anything unauthorized.
+    # Recheck every scored candidate, including low-scoring neighbor candidates.
+    # Neither a reranker nor a completion heuristic may introduce a new passage.
+    originals = {id(chunk) for chunk in authorized_chunks}
     verified = []
-    for chunk, score in selected:
-        decision = _engine.can_access(user, chunk.metadata)
-        if decision.allow and (not coverage_sellers
-                               or chunk.metadata.get("seller_id") in coverage_sellers) and (
-                not portfolio_only or answer_scope.safe_passage(chunk, sellers)):
+    for chunk, score in outcome.scored_items:
+        if (id(chunk) in originals and _engine.can_access(user, chunk.metadata).allow
+                and _in_scope(chunk, plan, searched)):
             verified.append((chunk, score))
         else:
             stage_trace["final_gate_denied"].append(_chunk_ref(chunk, score))
-            logger.error("request=%s chunk=%s dropped at final gate: %s",
-                         request_id, chunk.chunk_id,
-                         decision.reason if not decision.allow else "answer_scope_mismatch")
+    verified_ids = {id(chunk) for chunk, _ in verified}
+    outcome.scored_items = verified
+    outcome.items = [pair for pair in outcome.items if id(pair[0]) in verified_ids]
+    ordered, omissions = evidence.prioritize(outcome, plan)
+    stage_trace["evidence_omissions"].extend(omissions)
+    stage_trace["evidence_priority"] = [
+        {**_chunk_ref(chunk, score), "neighbor_completion": id(chunk) not in {
+            id(anchor) for anchor, _ in outcome.items}} for chunk, score in ordered]
 
-    if not verified:
-        logger.info("request=%s user=%s status=below_threshold", request_id,
-                    user.user_id)
-        return None, _refusal(request_id, user, question, started, sellers,
-                              missing_sellers=coverage_sellers if portfolio_only else [],
-                              candidate_document_ids=candidate_ids,
-                              security_trace=stage_trace,
-                              reranked=outcome.applied, **stats)
-
-    check_deadline()
     context_started = time.monotonic()
+    context_block, sources = context.build(ordered, cfg, omissions=stage_trace["evidence_omissions"])
+    stage_trace["stage_latency_ms"]["context"] = round((time.monotonic() - context_started) * 1000)
     if coverage_sellers:
-        context_block, sources = context.build_balanced(verified, coverage_sellers, cfg)
-        included = {source.seller_id for source in sources}
         stage_trace["seller_coverage"] = {
-            seller: seller in included for seller in coverage_sellers}
-    else:
-        context_block, sources = context.build(verified, cfg)
-    stage_trace["stage_latency_ms"]["context"] = round(
-        (time.monotonic() - context_started) * 1000)
+            seller: any(source.seller_id == seller for source in sources) for seller in coverage_sellers}
     if not context_block.strip():
         return None, _refusal(request_id, user, question, started, sellers,
-                              missing_sellers=coverage_sellers if portfolio_only else [],
-                              candidate_document_ids=candidate_ids,
-                              security_trace=stage_trace,
-                              reranked=outcome.applied, **stats)
-
+                             candidate_document_ids=candidate_ids, security_trace=stage_trace,
+                             missing_sellers=coverage_sellers, reranked=outcome.applied, **stats)
     stage_trace["context_spans"] = _context_spans(context_block, sources, verified)
+    _diagnostics(stage_trace, context_block)
     stage_trace["emitted_citations"] = [source.to_dict() for source in sources]
-
+    stage_trace["context_budget"] = {"characters": len(context_block), "token_bound": context.count_tokens(context_block),
+                                    "documents": len(sources), "chunks": len(stage_trace["context_spans"]),
+                                    "max_documents": cfg.top_k, "max_chunks": cfg.max_context_chunks}
+    scoped_question = answer_scope.safe_question(question, sellers) if portfolio_only else question
     messages = prompts.build_messages(
-        prompts.SYSTEM_PROMPT + (prompts.seller_coverage_instruction(coverage_sellers, sources)
-                                 if coverage_sellers else "")
+        prompts.SYSTEM_PROMPT + prompts.source_request_instruction(plan, sources)
+        + (prompts.seller_coverage_instruction(coverage_sellers, sources) if coverage_sellers else "")
         + (prompts.portfolio_instruction(sellers, sources) if portfolio_only else ""),
-        conversation.render(turns),
-        context_block,
-        scoped_question,
-    )
-    return _Prepared(request_id, user, question, messages, sources, sellers,
-                     stats, outcome.applied, started, context_block,
-                     candidate_ids, stage_trace, coverage_sellers, portfolio_only), None
+        conversation.render(turns), context_block, scoped_question)
+    included_ids = {chunk_id for source in sources for chunk_id in source.chunk_ids}
+    return _Prepared(request_id, user, question, messages, sources, sellers, stats,
+                     outcome.applied, started, context_block, candidate_ids, stage_trace,
+                     coverage_sellers, portfolio_only, plan,
+                     [chunk for chunk, _ in ordered if chunk.chunk_id in included_ids]), None
 
 
 _EVIDENCE_REF = re.compile(r"\[(EV-[0-9a-f]{12})\]")
@@ -456,20 +429,23 @@ def _is_refusal(text: str) -> bool:
 
 def _usage_summary(*usage_rows: dict | None) -> dict:
     total = 0
-    reported = False
+    reported = bool(usage_rows)
     for row in usage_rows:
         if not isinstance(row, dict):
+            reported = False
             continue
         value = row.get("total_tokens")
         if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
             total += value
-            reported = True
             continue
+        row_complete = True
         for key in ("prompt_tokens", "completion_tokens"):
             value = row.get(key)
             if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
                 total += value
-                reported = True
+            else:
+                row_complete = False
+        reported = reported and row_complete
     return {"reported": reported, "total_tokens": total}
 
 
@@ -485,11 +461,62 @@ def _missing_note(sellers: list[str], sources: list) -> str:
         for seller in missing)) if missing else ""
 
 
+
+def _final_authorization(prepared):
+    for chunk in prepared.included_chunks:
+        if (not _engine.can_access(prepared.user, chunk.metadata).allow
+                or not _in_scope(chunk, prepared.plan, prepared.plan.searched_sellers)):
+            raise AnswerUnavailableError("Included evidence is no longer authorized.")
+    if prepared.included_chunks:
+        from indexing.src import config as index_config
+        import json
+        if index_config.REVOCATIONS_FILE.exists():
+            try:
+                raw = json.loads(index_config.REVOCATIONS_FILE.read_text(encoding="utf-8"))
+                revoked = raw["document_ids"]
+                if not isinstance(revoked, list) or any(not isinstance(v, str) for v in revoked):
+                    raise ValueError("Invalid revocations")
+            except (ValueError, KeyError, OSError) as exc:
+                raise AnswerUnavailableError("Emergency revocations could not be verified.") from exc
+            if any(chunk.document_id in revoked for chunk in prepared.included_chunks):
+                raise AnswerUnavailableError("Included evidence was revoked.")
+    prepared.security_trace["final_authorization"] = {"status": "passed",
+        "chunks": [chunk.chunk_id for chunk in prepared.included_chunks]}
+
+
+def _verified_text(prepared, draft, model, finish_reason, provider_refusal, usage):
+    prepared.security_trace["generation"] = {
+        "model": model, "finish_reason": finish_reason, "draft": draft,
+        "usage": {key: value for key, value in (usage or {}).items()
+                  if key in {"prompt_tokens", "completion_tokens", "total_tokens"}}}
+    review = prepared.security_trace.setdefault("verification", {})
+    try:
+        if finish_reason != "stop" or provider_refusal:
+            review.update({"status": "not_started", "reason": "incomplete_generation"})
+            raise AnswerUnavailableError("The generated draft did not complete.")
+        _final_authorization(prepared)
+        final, review_usage = verification.verify(prepared.question, prepared.context,
+            prepared.sources, _strip_model_sources(draft), prepared.plan, review)
+        _final_authorization(prepared)
+        check_deadline()
+    except (verification.VerificationError, TimeoutError, AnswerUnavailableError) as exc:
+        error = AnswerUnavailableError(f"Answer verification failed: {exc}")
+        error.security_trace = prepared.security_trace
+        error.context = prepared.context
+        raise error from exc
+    finally:
+        prepared.security_trace.setdefault("stage_latency_ms", {})["verification"] = review.get("latency_ms", 0)
+        prepared.security_trace["model_usage"] = _usage_summary(
+            *(prepared.security_trace.get("intent_usage") or []), usage or {}, review.get("usage"))
+    return final
+
+
 def _finalize(prepared: _Prepared, answer_text: str,
               model: str | None, finish_reason: str = "stop",
               provider_refusal: bool = False,
               usage: dict | None = None) -> AnswerResponse:
     check_deadline()
+    answer_text = _verified_text(prepared, answer_text, model, finish_reason, provider_refusal, usage)
     if getattr(prepared, "portfolio_only", False):
         included = {source.seller_id for source in prepared.sources}
         if not answer_scope.mentioned_sellers(answer_text) <= included:
@@ -516,14 +543,9 @@ def _finalize(prepared: _Prepared, answer_text: str,
         if any(not answer_scope.mentioned_sellers(str(source.to_dict())) <= set(prepared.sellers)
                for source in prepared.sources):
             raise AnswerUnavailableError("The source inventory exceeded the portfolio scope.")
-    is_refusal = _is_refusal(answer_text)
-    prepared.security_trace["generation"] = {
-        "model": model, "finish_reason": finish_reason,
-        "usage": {key: value for key, value in (usage or {}).items()
-                  if key in {"prompt_tokens", "completion_tokens", "total_tokens"}},
-    }
-    prepared.security_trace["model_usage"] = _usage_summary(
-        *(prepared.security_trace.get("intent_usage") or []), usage or {})
+    review_claims = prepared.security_trace.get("verification", {}).get("evidence", [])
+    is_refusal = _is_refusal(answer_text) or (bool(review_claims) and all(
+        claim["qualification"] and not claim["evidence_ids"] for claim in review_claims))
     prepared.security_trace["retry_counts"] = retry_snapshot()
     prepared.security_trace.setdefault("stage_latency_ms", {})["total"] = int(
         (time.time() - prepared.started) * 1000)
@@ -558,7 +580,7 @@ def _finalize(prepared: _Prepared, answer_text: str,
     return response
 
 
-def answer_query(principal, query, conversation_history=None,
+def _answer_query(principal, query, conversation_history=None,
                  seller_filter=None, top_k: int | None = None,
                  request_id: str | None = None,
                  cfg: config.AnsweringConfig | None = None) -> AnswerResponse:
@@ -587,7 +609,7 @@ def answer_query(principal, query, conversation_history=None,
                      usage.get("provider_refusal", False), usage)
 
 
-def answer_query_stream(principal, query, conversation_history=None,
+def _answer_query_stream(principal, query, conversation_history=None,
                         seller_filter=None, top_k: int | None = None,
                         request_id: str | None = None,
                         cfg: config.AnsweringConfig | None = None):
@@ -609,7 +631,7 @@ def answer_query_stream(principal, query, conversation_history=None,
                                    "sources", "effective_sellers")},
                "stats": payload["stats"]}
         yield {"type": "delta", "text": refusal.answer}
-        yield {"type": "done", **payload}
+        yield {"type": "done", **payload, "_token_usage": refusal.security_trace.get("model_usage")}
         return
 
     yield {
@@ -628,7 +650,6 @@ def answer_query_stream(principal, query, conversation_history=None,
     }
 
     pieces: list[str] = []
-    suppressed = False
     stream = None
     generation_started = time.monotonic()
     try:
@@ -643,11 +664,7 @@ def answer_query_stream(principal, query, conversation_history=None,
                 usage = stopped.value or {}
                 break
             pieces.append(delta)
-            joined = "".join(pieces)
-            if "Sources:" in joined and _strip_model_sources(joined) != joined:
-                suppressed = True
-            if not suppressed and not getattr(prepared, "portfolio_only", False):
-                yield {"type": "delta", "text": delta}
+            # Answer frames remain private until the evidence review succeeds.
     except llm.LLMError as exc:
         logger.error("request=%s groq streaming failure: %s", request_id, exc)
         yield {"type": "error", "outcome": "error", "completed": False,
@@ -680,17 +697,35 @@ def answer_query_stream(principal, query, conversation_history=None,
     except AnswerUnavailableError:
         yield {"type": "error", "outcome": "error", "completed": False,
                "answered": False, "error": "AnswerUnavailableError",
-               "message": AnswerUnavailableError.client_message}
+               "message": AnswerUnavailableError.client_message,
+               "_token_usage": prepared.security_trace.get("model_usage")}
         return
-    if prepared.portfolio_only:
-        # Raw provider frames can contain a split forbidden label; no portfolio
-        # text leaves the server until the full answer passes the same finalizer.
-        yield {"type": "delta", "text": response.answer}
-    else:
-        note = _coverage_note(prepared)
-        if note:
-            yield {"type": "delta", "text": note}
-        if prepared.sources:
-            yield {"type": "delta", "text": _sources_block(prepared.sources)}
+    yield {"type": "delta", "text": response.answer}
     yield {"type": "done", **response.to_dict(),
            "_token_usage": response.security_trace.get("model_usage")}
+
+def answer_query(principal, query, conversation_history=None, seller_filter=None,
+                 top_k=None, request_id=None, cfg=None):
+    sink = {}
+    token = _request_diagnostics.set(sink)
+    try:
+        with request_deadline(config.API_REQUEST_TIMEOUT_S):
+            return _answer_query(principal, query, conversation_history, seller_filter,
+                                 top_k, request_id, cfg)
+    except Exception as exc:
+        trace = sink.get("trace", {})
+        trace.setdefault("generation", {"finish_reason": "not_started"})
+        trace.setdefault("verification", {"status": "not_started"})
+        trace["error"] = f"{type(exc).__name__}: {exc}"
+        exc.security_trace = trace
+        exc.context = sink.get("context", "")
+        raise
+    finally:
+        _request_diagnostics.reset(token)
+
+
+def answer_query_stream(principal, query, conversation_history=None, seller_filter=None,
+                        top_k=None, request_id=None, cfg=None):
+    with request_deadline(config.API_REQUEST_TIMEOUT_S):
+        yield from _answer_query_stream(principal, query, conversation_history, seller_filter,
+                                        top_k, request_id, cfg)

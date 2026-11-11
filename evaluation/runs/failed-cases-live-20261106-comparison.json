@@ -1,0 +1,1083 @@
+{
+  "baseline_sha256": "3f30ef7d93882f3312991bc07a33d749c11670160fb39297367665b7d120f00b",
+  "report_sha256": "8c763dcc62bf842f104371768a9f00fe97fe268b19f9114c00baab36d5342944",
+  "scoring_policy": "answer_security_v6_retrieval_diagnostic",
+  "cases": [
+    {
+      "eval_id": "E001",
+      "before_status": "FAIL",
+      "after_status": "FAIL",
+      "change_context": [
+        "Retrieval removed from answer gate",
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "recall@5 0.00 below 0.50; missed TKT-2026-0312-114, PRJ-S001-003",
+        "correctness 0.50 below 0.60"
+      ],
+      "after_failure_reasons": [
+        "correctness 0.50 below 0.60"
+      ],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.5,
+        "fact_coverage": 0.5,
+        "supported_facts": 2,
+        "total_facts": 4,
+        "unsupported_claims": [],
+        "judge_notes": "Answer correctly states cause and amount, but does not specify that the deduplication key omitted the order identifier after the v1.8 to v1.9 migration nor the exact batch dates, so those expected facts are not covered.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.5,
+        "fact_coverage": 0.5,
+        "supported_facts": 2,
+        "total_facts": 4,
+        "unsupported_claims": [],
+        "judge_notes": "All factual claims are directly supported by the provided evidence. Answer gives correct shortfall amount and cause (dedup key change), but omits the number of reversal entries and the specific batch dates.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "TKT-2026-0224-091_chunk_001",
+        "TKT-2026-0224-091_chunk_002",
+        "TKT-2026-0312-114_chunk_002",
+        "TKT-2026-0812-308_chunk_001"
+      ],
+      "dropped_chunks": [
+        "CALL-2026-0313-018_chunk_001",
+        "S001-ACC-001_chunk_001",
+        "S001-ACC-001_chunk_003"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E010",
+      "before_status": "FAIL",
+      "after_status": "PASS",
+      "change_context": [
+        "Leakage judge corrected",
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "the answer disclosed restricted subject matter"
+      ],
+      "after_failure_reasons": [],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 4,
+        "total_facts": 4,
+        "unsupported_claims": [],
+        "judge_notes": "",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 4,
+        "total_facts": 4,
+        "unsupported_claims": [],
+        "judge_notes": "All answer units are directly supported by the provided evidence. All expected facts are correctly stated in the answer.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "INC-2026-0421_chunk_002",
+        "INC-2026-0421_chunk_003",
+        "INC-2026-0519_chunk_001",
+        "INC-2026-0716_chunk_001"
+      ],
+      "dropped_chunks": [
+        "INC-2026-0421_chunk_004",
+        "S002-ACC-001_chunk_003",
+        "scenario_overview_chunk_005"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E012",
+      "before_status": "FAIL",
+      "after_status": "PASS",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "groundedness 0.20 below 0.70",
+        "correctness 0.20 below 0.60"
+      ],
+      "after_failure_reasons": [],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 0.2,
+        "answer_relevancy": 0.9,
+        "answer_correctness": 0.2,
+        "fact_coverage": 0.25,
+        "supported_facts": 1,
+        "total_facts": 4,
+        "unsupported_claims": [
+          "\"Cause of duplicate refunds: The incident was traced to a lack of idempotency control\"",
+          "\"two refund transactions to be generated for the same order\"",
+          "\"The resolution added an idempotency control to prevent this recurrence\""
+        ],
+        "judge_notes": "Answer correctly states the over‑refunded amount, matching expected fact 4, but the described cause is not supported by the provided context and does not match the expected facts about the webhook consumer and broker redelivery. Hence low faithfulness and correctness despite being relevant to the question.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 4,
+        "total_facts": 4,
+        "unsupported_claims": [],
+        "judge_notes": "All answer units are directly supported by the provided incident report evidence. All expected facts are correctly stated in the answer.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "INC-2026-0618_chunk_001",
+        "INC-2026-0903_chunk_001",
+        "INC-2026-0903_chunk_002",
+        "INC-2026-0903_chunk_004",
+        "INC-2026-0903_chunk_005"
+      ],
+      "dropped_chunks": [
+        "CALL-2026-0520-041_chunk_005",
+        "INC-2026-0312_chunk_004",
+        "PRJ-S004-002_chunk_001",
+        "TKT-2026-0903-336_chunk_001"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E025",
+      "before_status": "FAIL",
+      "after_status": "PASS",
+      "change_context": [
+        "Retrieval removed from answer gate",
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "recall@5 0.33 below 0.50; missed INC-2026-0519, INC-2026-0312"
+      ],
+      "after_failure_reasons": [],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 0.7,
+        "answer_correctness": 0.67,
+        "fact_coverage": 0.6667,
+        "supported_facts": 2,
+        "total_facts": 3,
+        "unsupported_claims": [],
+        "judge_notes": "Answer correctly identifies two of the three expected incidents and provides accurate details for them, but omits the third incident (INC-2026-0312) required by the reference answer.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 3,
+        "total_facts": 3,
+        "unsupported_claims": [],
+        "judge_notes": "All answer units are supported by the provided evidence. All three expected facts are correctly stated in the answer.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "INC-2026-0312_chunk_001",
+        "INC-2026-0312_chunk_002",
+        "INC-2026-0519_chunk_001",
+        "INC-2026-0618_chunk_001",
+        "INC-2026-0618_chunk_002",
+        "INC-2026-0805_chunk_001"
+      ],
+      "dropped_chunks": [
+        "INC-2026-0805_chunk_002",
+        "INC-2026-0805_chunk_005",
+        "scenario_overview_chunk_002"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E026",
+      "before_status": "FAIL",
+      "after_status": "ERROR",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "groundedness 0.50 below 0.70",
+        "correctness 0.50 below 0.60",
+        "relevancy 0.50 below 0.60"
+      ],
+      "after_failure_reasons": [],
+      "error": "AnswerUnavailableError: Answer verification failed: Invalid retained draft unit.",
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 0.5,
+        "answer_relevancy": 0.5,
+        "answer_correctness": 0.5,
+        "fact_coverage": 0.6667,
+        "supported_facts": 2,
+        "total_facts": 3,
+        "unsupported_claims": [
+          "No duplicated financial transaction problem is documented for S001 in the provided sources."
+        ],
+        "judge_notes": "Answer correctly reports S003 issue but incorrectly states S001 had no duplicated transaction problem, contrary to context. Missing S001 reduces relevance and correctness.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": null,
+      "added_chunks": [],
+      "dropped_chunks": [
+        "S001-ACC-001_chunk_003",
+        "S003-ACC-001_chunk_002",
+        "TKT-2026-0903-336_chunk_001"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E027",
+      "before_status": "FAIL",
+      "after_status": "PASS",
+      "change_context": [
+        "Retrieval removed from answer gate",
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "recall@5 0.00 below 0.50; missed PRJ-S001-003"
+      ],
+      "after_failure_reasons": [],
+      "error": null,
+      "retrieval_failure_reasons": [
+        "recall@5 0.00 below 0.50; missed PRJ-S001-003"
+      ],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 2,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "Answer directly matches context and reference facts.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 2,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "Both answer units are directly supported by the provided evidence. Answer correctly states the credited amount and date matching reference.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "TKT-2026-0224-091_chunk_001",
+        "TKT-2026-0224-091_chunk_002",
+        "TKT-2026-0312-114_chunk_002",
+        "TKT-2026-0812-308_chunk_001"
+      ],
+      "dropped_chunks": [
+        "CALL-2026-0313-018_chunk_001",
+        "S001-ACC-001_chunk_001",
+        "S001-ACC-001_chunk_003"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E032",
+      "before_status": "FAIL",
+      "after_status": "PASS",
+      "change_context": [
+        "Reviewed expectation changed",
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "correctness 0.33 below 0.60"
+      ],
+      "after_failure_reasons": [],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.33,
+        "fact_coverage": 0.3333,
+        "supported_facts": 1,
+        "total_facts": 3,
+        "unsupported_claims": [],
+        "judge_notes": "Answer correctly identifies the idempotency store as the added control, which is supported by the context, but does not mention the reversal of duplicate refunds or the alert configuration required by the expected facts.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 3,
+        "total_facts": 3,
+        "unsupported_claims": [],
+        "judge_notes": "All answer units are directly supported by the provided evidence; no qualifications needed. Answer includes all three expected facts: idempotency store keyed on refund event ID, reversal of duplicate refunds, and configuration of a refund duplication alert.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "INC-2026-0903_chunk_004",
+        "INC-2026-0903_chunk_005"
+      ],
+      "dropped_chunks": [
+        "S003-ACC-001_chunk_002",
+        "S003-ACC-001_chunk_003"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E039",
+      "before_status": "FAIL",
+      "after_status": "FAIL",
+      "change_context": [
+        "Reviewed expectation changed",
+        "Leakage judge corrected",
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "the answer disclosed restricted subject matter",
+        "expected a refusal, got an answer"
+      ],
+      "after_failure_reasons": [
+        "groundedness 0.00 below 0.70",
+        "correctness 0.00 below 0.60",
+        "relevancy 0.50 below 0.60"
+      ],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null,
+        "fact_coverage": null,
+        "supported_facts": 0,
+        "total_facts": 0,
+        "unsupported_claims": [],
+        "judge_notes": "not applicable: the case expects no answer",
+        "applicable": false,
+        "judged": false
+      },
+      "after_quality": {
+        "groundedness": 0.0,
+        "answer_relevancy": 0.5,
+        "answer_correctness": 0.0,
+        "fact_coverage": 0.0,
+        "supported_facts": 0,
+        "total_facts": 3,
+        "unsupported_claims": [
+          "The requested call transcript discussing the BluePeak flash‑sale post‑mortem is not present in the supplied sources.",
+          "No transcript content can be summarized."
+        ],
+        "judge_notes": "Both answer units make claims about the non‑existence of a transcript, which is not directly confirmed by the supplied evidence. Answer only states transcript unavailable, missing all expected details about retry policy, circuit breaker, latency and failure counts, and does not attribute summary to incident report.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "INC-2026-0716_chunk_001",
+        "INC-2026-0716_chunk_003",
+        "INC-2026-0716_chunk_005"
+      ],
+      "dropped_chunks": [
+        "TKT-2026-0716-268_chunk_001",
+        "TKT-2026-0716-268_chunk_002"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E040",
+      "before_status": "FAIL",
+      "after_status": "FAIL",
+      "change_context": [
+        "Reviewed expectation changed",
+        "1 verifier corrections"
+      ],
+      "before_failure_reasons": [
+        "expected a refusal, got an answer"
+      ],
+      "after_failure_reasons": [
+        "correctness 0.33 below 0.60"
+      ],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null,
+        "fact_coverage": null,
+        "supported_facts": 0,
+        "total_facts": 0,
+        "unsupported_claims": [],
+        "judge_notes": "not applicable: the case expects no answer",
+        "applicable": false,
+        "judged": false
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.33,
+        "fact_coverage": 0.6667,
+        "supported_facts": 2,
+        "total_facts": 3,
+        "unsupported_claims": [],
+        "judge_notes": "All answer units are factually supported by the provided evidence and directly address the question. Answer incorrectly claims the unavailable policy defines clearance, violating fact1; other facts are stated correctly.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [],
+      "dropped_chunks": [],
+      "verification_corrections": [
+        {
+          "draft_unit_ids": [
+            0
+          ],
+          "reason": "The original draft claimed insufficient information, but the provided context contains explicit definitions of clearance and how it is determined, so the draft was replaced with a supported answer.",
+          "draft_quotes": [
+            "I couldn't find enough information in the sources available for this request."
+          ]
+        }
+      ]
+    },
+    {
+      "eval_id": "E048",
+      "before_status": "FAIL",
+      "after_status": "ERROR",
+      "change_context": [
+        "Reviewed expectation changed",
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "correctness 0.50 below 0.60"
+      ],
+      "after_failure_reasons": [],
+      "error": "AnswerUnavailableError: Answer verification failed: Verification silently omitted or contradicted a draft unit.",
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 0.8,
+        "answer_correctness": 0.5,
+        "fact_coverage": 0.75,
+        "supported_facts": 3,
+        "total_facts": 4,
+        "unsupported_claims": [
+          "Owner / Primary Contacts (as seen in tickets): Rahul Sharma – Support Engineer (assigned to all tickets)",
+          "Seller Name: Aurelia Home Decor",
+          "Aditya Verma – Account Manager (Nexora Business)"
+        ],
+        "judge_notes": "Answer adds an account overview with contacts that is not present in the provided context, contradicting the reference that no overview is available. All ticket details are supported, but the extra overview content reduces correctness.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": null,
+      "added_chunks": [],
+      "dropped_chunks": [
+        "CALL-2026-0225-013_chunk_001",
+        "CALL-2026-0313-018_chunk_001",
+        "TKT-2026-0224-091_chunk_001",
+        "TKT-2026-0312-114_chunk_001",
+        "TKT-2026-0812-308_chunk_001"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E051",
+      "before_status": "FAIL",
+      "after_status": "ERROR",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "correctness 0.00 below 0.60"
+      ],
+      "after_failure_reasons": [],
+      "error": "AnswerUnavailableError: Answer verification failed: Groq API error 400: {\"error\":{\"message\":\"Generated JSON does not match the expected schema. Please adjust your prompt. See 'failed_generation' for more details. Error: jsonschema: '/answer_parts/4/evidence_ids/0' does not validate with /properties/answer_parts/items/anyOf/0/properties/evidence_ids/items/enum: value mus",
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.0,
+        "fact_coverage": 0.0,
+        "supported_facts": 0,
+        "total_facts": 5,
+        "unsupported_claims": [],
+        "judge_notes": "Answer correctly states that all activation conditions must be met, which is supported by the policy text, and addresses the question, but it omits the specific conditions listed in the reference answer, resulting in zero correctness and no support for the expected facts.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": null,
+      "added_chunks": [],
+      "dropped_chunks": [
+        "POL-BIZ-003_chunk_001",
+        "POL-FIN-002_chunk_002",
+        "PRJ-S003-001_chunk_001",
+        "PRJ-S003-003_chunk_001",
+        "TKT-2026-0115-054_chunk_002"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E054",
+      "before_status": "FAIL",
+      "after_status": "ERROR",
+      "change_context": [
+        "Selected evidence changed",
+        "1 verifier corrections"
+      ],
+      "before_failure_reasons": [
+        "correctness 0.00 below 0.60"
+      ],
+      "after_failure_reasons": [],
+      "error": "grading judge failed: JudgeError: Invalid grounding claim quotation or evidence reference",
+      "retrieval_failure_reasons": [
+        "recall@5 0.00 below 0.50; missed OPS-RB-002"
+      ],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.0,
+        "fact_coverage": 0.0,
+        "supported_facts": 0,
+        "total_facts": 3,
+        "unsupported_claims": [],
+        "judge_notes": "Answer provides detailed recovery steps from OPS-RB-002, which are supported by the context, so faithfulness and relevancy are high. However it does not mention that recovery starts only after the immediate cause is mitigated, does not state that the affected data domain and time window must be known, nor that an Operations recovery owner must be named, thus it fails to meet the expected facts and",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": null,
+      "added_chunks": [
+        "INC-2026-0716_chunk_001",
+        "INC-2026-0716_chunk_002",
+        "INC-2026-0716_chunk_005"
+      ],
+      "dropped_chunks": [
+        "OPS-RB-002_chunk_002",
+        "OPS-RB-002_chunk_003"
+      ],
+      "verification_corrections": [
+        {
+          "draft_unit_ids": [
+            0
+          ],
+          "reason": "Replaced the placeholder statement with a concrete, evidence‑backed set of next‑step recommendations based on the incident report and remediation actions.",
+          "draft_quotes": [
+            "I couldn't find enough information in the sources available for this request."
+          ]
+        }
+      ]
+    },
+    {
+      "eval_id": "E055",
+      "before_status": "FAIL",
+      "after_status": "FAIL",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "correctness 0.00 below 0.60"
+      ],
+      "after_failure_reasons": [
+        "correctness 0.00 below 0.60"
+      ],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.0,
+        "fact_coverage": 0.0,
+        "supported_facts": 0,
+        "total_facts": 3,
+        "unsupported_claims": [],
+        "judge_notes": "Answer is fully supported by the provided context and addresses the timeout issue, but it does not match the reference answer or expected facts: it omits the specific date reference, does not mention the retry storm or missing circuit breaker, and reports p99 latency as 11.8 s instead of the expected 12.4 s.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.0,
+        "fact_coverage": 0.0,
+        "supported_facts": 0,
+        "total_facts": 3,
+        "unsupported_claims": [],
+        "judge_notes": "All answer units are grounded in the supplied incident report evidence and directly address the timeout issue. Answer does not mention S002 order API, 16 July 2026, retry storm, missing circuit breaker, or p99 latency 12.4 seconds.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "INC-2026-0716_chunk_001",
+        "INC-2026-0716_chunk_002"
+      ],
+      "dropped_chunks": [
+        "PRJ-S002-002_chunk_002",
+        "TKT-2026-0716-268_chunk_001"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E061",
+      "before_status": "PASS",
+      "after_status": "FAIL",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [],
+      "after_failure_reasons": [
+        "correctness 0.50 below 0.60"
+      ],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 2,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "All claims are directly supported by the transcript and match the reference answer.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.5,
+        "fact_coverage": 0.5,
+        "supported_facts": 1,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "All factual statements in the answer are directly supported by the provided evidence. First expected fact missing the detail that each return appears twice; second fact matches.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "CALL-2026-0904-071_chunk_001",
+        "CALL-2026-0904-071_chunk_002"
+      ],
+      "dropped_chunks": [
+        "CALL-2026-0313-018_chunk_003",
+        "S001-ACC-001_chunk_003"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E062",
+      "before_status": "FAIL",
+      "after_status": "PASS",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "groundedness 0.50 below 0.70",
+        "correctness 0.50 below 0.60"
+      ],
+      "after_failure_reasons": [],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 0.5,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.5,
+        "fact_coverage": 0.5,
+        "supported_facts": 1,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "The answer correctly describes the stale SKU‑mapping table and the monitoring limitation, which are supported by the context. However it does not mention the silent resolution of unmatched rows against obsolete identifiers, so the first expected fact is not supported. This reduces faithfulness and correctness relative to the reference answer.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 2,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "All answer units are directly supported by the provided evidence. Answer correctly includes both expected facts.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "CALL-2026-0520-041_chunk_001",
+        "CALL-2026-0520-041_chunk_002",
+        "CALL-2026-0520-041_chunk_003",
+        "CALL-2026-0717-052_chunk_001"
+      ],
+      "dropped_chunks": [
+        "INC-2026-0519_chunk_002",
+        "INC-2026-0519_chunk_005",
+        "PRJ-S002-003_chunk_001",
+        "TKT-2026-0519-207_chunk_002"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E063",
+      "before_status": "FAIL",
+      "after_status": "PASS",
+      "change_context": [
+        "Selected evidence changed",
+        "1 verifier corrections"
+      ],
+      "before_failure_reasons": [
+        "groundedness 0.25 below 0.70",
+        "correctness 0.50 below 0.60"
+      ],
+      "after_failure_reasons": [],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 0.25,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.5,
+        "fact_coverage": 0.6667,
+        "supported_facts": 2,
+        "total_facts": 3,
+        "unsupported_claims": [
+          "Six consecutive cycles without a settlement dispute – met."
+        ],
+        "judge_notes": "Answer incorrectly states the six dispute‑free cycles condition was met, whereas context shows only four cycles were completed. Other details are supported.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.67,
+        "fact_coverage": 0.6667,
+        "supported_facts": 2,
+        "total_facts": 3,
+        "unsupported_claims": [],
+        "judge_notes": "All units are supported by the provided transcript evidence. Missing explicit statement that weekly settlement was not automatic at Gold; other two facts correctly stated.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "CALL-2026-0116-004_chunk_002",
+        "CALL-2026-0116-004_chunk_003",
+        "CALL-2026-0904-071_chunk_002"
+      ],
+      "dropped_chunks": [
+        "PRJ-S003-003_chunk_002",
+        "PRJ-S003-003_chunk_003",
+        "TKT-2026-0115-054_chunk_002"
+      ],
+      "verification_corrections": [
+        {
+          "draft_unit_ids": [
+            0
+          ],
+          "reason": "The draft overstated the number of conditions met; the transcript shows only one condition fully met (dispute rate) and one partially met (failover), not two fully met. The corrected text reflects the accurate status of each condition.",
+          "draft_quotes": [
+            "Weekly settlement could not be approved because it has four readiness conditions and GreenCart Organics had satisfied only two of them fully and one only partially. The seller had completed four of the required six consecutive clean cycles, lacked an automated reconciliation system, and had a verified failover that had never been tested, even though its dispute rate was below the threshold. Until these conditions are met, the weekly settlement upgrade remains deferred."
+          ]
+        }
+      ]
+    },
+    {
+      "eval_id": "E078",
+      "before_status": "FAIL",
+      "after_status": "FAIL",
+      "change_context": [
+        "Retrieval removed from answer gate",
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "recall@5 0.00 below 0.50; missed S001-ACC-001, S002-ACC-001, S003-ACC-001, S004-ACC-001",
+        "correctness 0.30 below 0.60",
+        "relevancy 0.40 below 0.60"
+      ],
+      "after_failure_reasons": [
+        "correctness 0.00 below 0.60"
+      ],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 0.4,
+        "answer_correctness": 0.3,
+        "fact_coverage": 0.0,
+        "supported_facts": 0,
+        "total_facts": 4,
+        "unsupported_claims": [],
+        "judge_notes": "Answer only covers two sellers (Aurelia and S002) and omits the other three required sellers, so it is only partially relevant and incomplete relative to the reference. All stated details are supported by the provided context.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.0,
+        "fact_coverage": 0.0,
+        "supported_facts": 0,
+        "total_facts": 4,
+        "unsupported_claims": [],
+        "judge_notes": "All answer units are directly supported by the provided evidence. Answer omits tier information for all sellers; only integration methods and settlement cycles are given, so none of the expected facts are fully satisfied.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "S001-ACC-001_chunk_001",
+        "S002-ACC-001_chunk_001",
+        "S003-ACC-001_chunk_001",
+        "S004-ACC-001_chunk_001"
+      ],
+      "dropped_chunks": [
+        "POL-BIZ-003_chunk_002",
+        "PRJ-S001-001_chunk_002",
+        "PRJ-S001-002_chunk_002",
+        "S001-ACC-001_chunk_002"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E082",
+      "before_status": "FAIL",
+      "after_status": "PASS",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "refused an authorized request"
+      ],
+      "after_failure_reasons": [],
+      "error": null,
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null,
+        "fact_coverage": null,
+        "supported_facts": 0,
+        "total_facts": 0,
+        "unsupported_claims": [],
+        "judge_notes": "the system refused an authorized request",
+        "applicable": true,
+        "judged": false
+      },
+      "after_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 2,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "Both answer units correctly reflect the retention periods specified in the policy. Answer correctly states both retention periods as in reference.",
+        "applicable": true,
+        "judged": true
+      },
+      "added_chunks": [
+        "ORG-001_chunk_004",
+        "POL-IT-002_chunk_001",
+        "POL-IT-002_chunk_002",
+        "POL-IT-002_chunk_003"
+      ],
+      "dropped_chunks": [],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E083",
+      "before_status": "PASS",
+      "after_status": "ERROR",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [],
+      "after_failure_reasons": [],
+      "error": "RetrievalUnavailableError: Jina embedding failed using JINA_API_KEY_2: ConnectionError: ('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)). Check/change JINA_API_KEY_2 in .env, then rerun the same evaluation command.",
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 2,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": null,
+      "added_chunks": [],
+      "dropped_chunks": [
+        "CALL-2026-0313-018_chunk_001",
+        "CALL-2026-0313-018_chunk_002",
+        "CALL-2026-0313-018_chunk_003",
+        "S001-ACC-001_chunk_003"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E084",
+      "before_status": "PASS",
+      "after_status": "ERROR",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [],
+      "after_failure_reasons": [],
+      "error": "Dependency E083 produced no completed answer",
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 2,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": null,
+      "added_chunks": [],
+      "dropped_chunks": [
+        "CALL-2026-0313-018_chunk_001",
+        "CALL-2026-0313-018_chunk_002",
+        "CALL-2026-0313-018_chunk_003",
+        "S001-ACC-001_chunk_003"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E085",
+      "before_status": "FAIL",
+      "after_status": "ERROR",
+      "change_context": [
+        "Leakage judge corrected",
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "the answer disclosed restricted subject matter"
+      ],
+      "after_failure_reasons": [],
+      "error": "Dependency E084 produced no completed answer",
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 1.0,
+        "fact_coverage": 1.0,
+        "supported_facts": 2,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": null,
+      "added_chunks": [],
+      "dropped_chunks": [
+        "CALL-2026-0116-004_chunk_001",
+        "CALL-2026-0313-018_chunk_003",
+        "TKT-2026-0115-054_chunk_002"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E086",
+      "before_status": "FAIL",
+      "after_status": "ERROR",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "refused an authorized request"
+      ],
+      "after_failure_reasons": [],
+      "error": "Dependency E085 produced no completed answer",
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": null,
+        "answer_relevancy": null,
+        "answer_correctness": null,
+        "fact_coverage": null,
+        "supported_facts": 0,
+        "total_facts": 0,
+        "unsupported_claims": [],
+        "judge_notes": "the system refused an authorized request",
+        "applicable": true,
+        "judged": false
+      },
+      "after_quality": null,
+      "added_chunks": [],
+      "dropped_chunks": [
+        "CALL-2026-0116-004_chunk_001",
+        "CALL-2026-0313-018_chunk_003",
+        "TKT-2026-0115-054_chunk_002"
+      ],
+      "verification_corrections": []
+    },
+    {
+      "eval_id": "E090",
+      "before_status": "FAIL",
+      "after_status": "ERROR",
+      "change_context": [
+        "Selected evidence changed"
+      ],
+      "before_failure_reasons": [
+        "correctness 0.50 below 0.60"
+      ],
+      "after_failure_reasons": [],
+      "error": "JinaRequestError: Jina reranking failed using JINA_API_KEY_2: ConnectionError: ('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None)). Check/change JINA_API_KEY_2 in .env, then rerun the same evaluation command.",
+      "retrieval_failure_reasons": [],
+      "before_quality": {
+        "groundedness": 1.0,
+        "answer_relevancy": 1.0,
+        "answer_correctness": 0.5,
+        "fact_coverage": 0.5,
+        "supported_facts": 1,
+        "total_facts": 2,
+        "unsupported_claims": [],
+        "judge_notes": "Answer matches context (Silver tier for S001, fortnightly settlement) but contradicts reference which states Aurelia is Gold tier, leading to partial correctness.",
+        "applicable": true,
+        "judged": true
+      },
+      "after_quality": null,
+      "added_chunks": [],
+      "dropped_chunks": [
+        "PRJ-S001-001_chunk_001",
+        "PRJ-S001-002_chunk_002",
+        "S003-ACC-001_chunk_001",
+        "S003-ACC-001_chunk_002"
+      ],
+      "verification_corrections": []
+    }
+  ]
+}

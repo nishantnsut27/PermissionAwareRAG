@@ -13,6 +13,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 import tempfile
 import time
@@ -30,7 +31,7 @@ from . import dataset as ds
 from . import evaluator, metrics
 
 logger = logging.getLogger(__name__)
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 CASE_DELAY_S = float(os.getenv("EVAL_CASE_DELAY_S", "90") or 90)
 RETRY_WAIT_S = float(os.getenv("EVAL_RETRY_WAIT_S", "90") or 90)
 MAX_RETRIES = int(os.getenv("EVAL_MAX_RETRIES", "0") or 0)
@@ -73,8 +74,8 @@ def _now() -> str:
 
 
 def _is_quota_error(message: str | None) -> bool:
-    return any(marker in (message or "").lower() for marker in
-               ("rate-limited", "rate limit", "quota", "429", "noavailablekeyerror"))
+    return bool(re.search(r"\bquota\b|\bquota_(?:exceeded|exhausted)\b|\b429\b|rate[- ]limit|noavailablekeyerror",
+                          message or "", re.IGNORECASE))
 
 
 def case_finished(row: dict) -> bool:
@@ -141,7 +142,7 @@ def execution_order(cases, rows, limits=None):
     return [c for c in cases if c.eval_id not in tail] + [c for c in cases if c.eval_id in tail]
 
 
-def print_case_result(case, row, limits=None):
+def print_case_result(case, row, limits=None, retry_quality=True):
     limit = attempt_limit(case.eval_id, limits)
     print(f"{case.eval_id} {case.category}: {row['status']} "
           f"(attempt {attempt_count(row)}/{limit})", flush=True)
@@ -153,6 +154,9 @@ def print_case_result(case, row, limits=None):
     for reason in dict.fromkeys(reasons):
         print(f"  Why: {reason}", flush=True)
     if retry_candidate(row):
+        if not retry_quality and case_finished(row):
+            print("  Quality failure preserved; targeted runs do not retry it.", flush=True)
+            return
         print("  Attempt limit reached; retained as failed/unresolved."
               if attempt_count(row) >= limit else
               "  Queued at the end for the next explicit rerun; no immediate retry.", flush=True)
@@ -186,13 +190,14 @@ def select_cases(dataset: ds.GoldenDataset, limit=None, only=None) -> list[ds.Ev
     return selected
 
 
-def fingerprint(dataset: ds.GoldenDataset, catalog: ds.PermissionCatalog,
+def input_manifest(dataset: ds.GoldenDataset, catalog: ds.PermissionCatalog,
                 run_config: dict | None = None, *, _source_overrides=None,
-                _source_excludes=()) -> str:
+                _source_excludes=()) -> dict:
     """Signature of run controls and the resolved immutable index artifacts."""
     snapshot = (run_config or {}).get("index_snapshot") or resolve_index_snapshot()
     settings = {
         "schema": SCHEMA_VERSION, "dataset": asdict(dataset),
+        "scoring_policy": evaluator.SCORING_POLICY,
         "run_configuration": run_config or {},
         "documents": catalog.documents, "answering": asdict(config.DEFAULT_ANSWERING),
         "retrieval": asdict(index_config.DEFAULT_RETRIEVAL),
@@ -214,23 +219,44 @@ def fingerprint(dataset: ds.GoldenDataset, catalog: ds.PermissionCatalog,
         "case_top_k": evaluator.CASE_TOP_K,
         "index_snapshot": snapshot,
     }
-    digest = hashlib.sha256(json.dumps(settings, sort_keys=True).encode())
+    hashes = {}
     files = []
     for folder in ("evaluation", "access_control/src", "answering/src", "indexing/src"):
         files.extend((ds.PROJECT_ROOT / folder).glob("*.py"))
     files.extend([index_config.PHASE2_CHUNKS_FILE, index_config.VOCAB_FILE])
     files.extend([ds.ACCESS_MATRIX_FILE,
                   ds.GOLDEN_DATASET_FILE,
+                  ds.V11_DATASET_FILE,
                   ds.PACKAGE_ROOT / "fixtures" / "fact_visibility.json",
-                  ds.PACKAGE_ROOT / "fixtures" / "restricted_facts.json"])
-    for path in sorted(files):
-        relative = path.relative_to(ds.PROJECT_ROOT)
+                  ds.PACKAGE_ROOT / "fixtures" / "restricted_facts.json",
+                  ds.PACKAGE_ROOT / "fixtures" / "remediation_v12_review.json",
+                  ds.PROJECT_ROOT / "scripts" / "run_evaluation.py"])
+    files.extend((ds.PROJECT_ROOT / "frontend/src").glob("*"))
+    for path in sorted(set(files)):
+        if path.is_dir():
+            continue
+        relative = Path(os.path.relpath(path, ds.PROJECT_ROOT))
         if relative.as_posix() in _source_excludes:
             continue
-        digest.update(str(relative).encode())
         override = (_source_overrides or {}).get(relative.as_posix())
-        digest.update(override if override is not None else path.read_bytes() if path.is_file() else b"<missing>")
-    return digest.hexdigest()
+        content = override if override is not None else path.read_bytes() if path.is_file() else b"<missing>"
+        hashes[relative.as_posix()] = hashlib.sha256(content).hexdigest()
+    return {"settings": settings, "files": hashes}
+
+
+def fingerprint(dataset, catalog, run_config=None, **kwargs):
+    manifest = input_manifest(dataset, catalog, run_config, **kwargs)
+    return hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
+
+
+def changed_components(previous, current):
+    old = previous.get("input_manifest") or {}
+    changes = []
+    for section in ("files", "settings"):
+        before, after = old.get(section, {}), current.get(section, {})
+        changes.extend(f"{section}.{key}" for key in sorted(set(before) | set(after))
+                       if before.get(key) != after.get(key))
+    return changes or ["checkpoint metadata or selection"]
 
 
 def compatible_scheduler_checkpoint(previous, dataset, catalog, current_config):
@@ -423,7 +449,8 @@ def _execute_case(case, catalog, history, retry_wait_s, max_retries,
 def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
         retry_wait_s=None, max_retries=None, resume=False, checkpoint=True,
         verbose=True, output: Path | None = None, retry_failed: bool = False,
-        initialize_only: bool = False, targeted_retry: bool = False) -> dict:
+        initialize_only: bool = False, targeted_retry: bool = False,
+        retry_quality: bool = True) -> dict:
     if targeted_retry and not resume:
         raise ds.DatasetError("Targeted retries require an existing report and resume=True")
     dataset = ds.load() if dataset is None else dataset
@@ -445,6 +472,12 @@ def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
     previous = load_results(output) if resume else None
     limits = attempt_limits(previous)
     run_configuration = {
+        "retry_quality": retry_quality,
+        "scoring_policy": evaluator.SCORING_POLICY,
+        "request_timeout_s": config.API_REQUEST_TIMEOUT_S,
+        "verification_timeout_s": config.VERIFICATION_TIMEOUT_S,
+        "verification_max_tokens": config.VERIFICATION_MAX_TOKENS,
+        "tokens_per_minute": config.API_TOKENS_PER_MINUTE,
         "delay_s": delay_s,
         "retry_wait_s": retry_wait_s,
         "max_retries": max_retries,
@@ -472,11 +505,12 @@ def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
                        "correctness": evaluator.MIN_CORRECTNESS, "relevancy": evaluator.MIN_RELEVANCY},
         "index_snapshot": resolve_index_snapshot(),
     }
+    manifest = input_manifest(dataset, catalog, run_configuration)
     signature = fingerprint(dataset, catalog, run_configuration)
     run_configuration["fingerprint"] = signature
     output = Path(output or ds.RESULTS_FILE)
     if checkpoint and (output.suffix.lower() != ".json"
-                       or output.resolve() == ds.GOLDEN_DATASET_FILE.resolve()):
+                       or output.resolve() in {ds.GOLDEN_DATASET_FILE.resolve(), ds.V11_DATASET_FILE.resolve()}):
         raise ds.DatasetError("Choose a .json results path separate from the golden dataset")
     rows: dict[str, dict] = {}
     previous_rows: dict[str, dict] = {}
@@ -489,37 +523,11 @@ def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
     if resume:
         fingerprint_mismatch = (previous is not None
                                 and previous.get("fingerprint") != signature)
-        if (fingerprint_mismatch and previous.get("selected_ids") == selected_ids
-                and compatible_targeted_checkpoint(previous, dataset, catalog, run_configuration)):
-            fingerprint_mismatch = False
-            policy_migrations = [{"from_fingerprint": previous["fingerprint"],
-                "to_fingerprint": signature, "at": _now(),
-                "reason": "Targeted retry scheduler; all scoring inputs and previous attempts preserved"}]
-        if (fingerprint_mismatch and previous.get("selected_ids") == selected_ids
-                and compatible_groq_checkpoint(previous, run_configuration)):
-            fingerprint_mismatch = False
-            policy_migrations = [{"from_fingerprint": previous["fingerprint"],
-                "to_fingerprint": signature, "at": _now(),
-                "reason": "Groq rotation and explicitly approved final attempts; scoring inputs and previous attempts preserved",
-                "groq_request_policy": GROQ_REQUEST_POLICY, "case_attempt_limits": limits}]
-        if (fingerprint_mismatch and previous.get("selected_ids") == selected_ids
-                and compatible_jina_checkpoint(previous, dataset, catalog, run_configuration)):
-            fingerprint_mismatch = False
-            policy_migrations = [{"from_fingerprint": previous["fingerprint"],
-                "to_fingerprint": signature, "at": _now(),
-                "reason": "User-requested alternating Jina keys, stop on Jina failure, and four total attempts",
-                "previous_max_case_attempts": 3, "max_case_attempts": MAX_CASE_ATTEMPTS,
-                "jina_request_policy": JINA_REQUEST_POLICY}]
-        if (fingerprint_mismatch and previous.get("selected_ids") == selected_ids
-                and compatible_scheduler_checkpoint(previous, dataset, catalog, run_configuration)):
-            fingerprint_mismatch = False
-            scheduler_migrations = [{"from_fingerprint": previous["fingerprint"],
-                                     "to_fingerprint": signature, "at": _now(),
-                                     "reason": "User-requested deferred retries; scoring inputs unchanged"}]
-        if (previous is None or fingerprint_mismatch
-                or previous.get("selected_ids") != selected_ids):
-            raise ds.DatasetError("Cannot resume: missing, legacy or mismatched checkpoint. "
-                                  "Use a new --output path with the intended selection.")
+        if (previous is None or previous.get("schema_version") != SCHEMA_VERSION
+                or fingerprint_mismatch or previous.get("selected_ids") != selected_ids):
+            detail = ", ".join(changed_components(previous or {}, manifest))
+            raise ds.DatasetError("Cannot resume: mismatched checkpoint. Changed components: "
+                                  + detail + ". Use a new --output path.")
         rows = {row["eval_id"]: row for row in previous["results"]}
         if len(rows) != len(previous["results"]) or set(rows) - set(selected_ids):
             raise ds.DatasetError("Checkpoint contains duplicate or unexpected cases")
@@ -564,7 +572,8 @@ def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
                 not parent or parent.get("outcome") != "answer" or not parent.get("answered") or not parent.get("answer")):
             invalidate(case.eval_id)
     retry_ids = {c.eval_id for c in cases if retry_candidate(rows.get(c.eval_id, {}))
-                 and attempt_count(rows[c.eval_id]) < attempt_limit(c.eval_id, limits)}
+                 and attempt_count(rows[c.eval_id]) < attempt_limit(c.eval_id, limits)
+                 and (retry_quality or rows[c.eval_id].get("status") == evaluator.ERROR)}
     queue = execution_order(cases, rows, limits)
     if targeted_retry:
         retry_ids &= retry_batch["attempt_caps"].keys()
@@ -581,7 +590,8 @@ def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
                     and not any(r.get("error") for r in results))
         return {
             "schema_version": SCHEMA_VERSION, "fingerprint": signature,
-            "run_id": run_id, "started_at": started_at, "generated_at": _now(),
+            "input_manifest": manifest, "scoring_policy": evaluator.SCORING_POLICY,
+            "status_semantics": "answer_security", "run_id": run_id, "started_at": started_at, "generated_at": _now(),
             "partial": not complete or len(cases) != len(dataset),
             "selection_complete": complete, "selected_ids": selected_ids,
             "case_specs": [{"eval_id": c.eval_id, "category": c.category,
@@ -595,6 +605,7 @@ def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
             "execution_order": [c.eval_id for c in queue],
             "retry_queue": [c.eval_id for c in execution_order(cases, rows, limits)
                             if retry_candidate(rows.get(c.eval_id, {}))
+                            and (retry_quality or rows[c.eval_id].get("status") == evaluator.ERROR)
                             and (not targeted_retry or c.eval_id in retry_batch["attempt_caps"])
                             and 0 < attempt_count(rows[c.eval_id]) < attempt_limit(c.eval_id, limits)],
             "exhausted_cases": [c.eval_id for c in cases if retry_candidate(rows.get(c.eval_id, {}))
@@ -632,7 +643,7 @@ def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
             current_row = rows.get(case.eval_id, {})
             if attempt_count(current_row) >= attempt_limit(case.eval_id, limits):
                 if verbose and retry_candidate(current_row):
-                    print_case_result(case, current_row, limits)
+                    print_case_result(case, current_row, limits, retry_quality)
                 continue
             if case_finished(current_row) and case.eval_id not in retry_ids:
                 continue
@@ -654,7 +665,7 @@ def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
                     blocked.attempts = attempt_history.get(case.eval_id, [])
                     rows[case.eval_id] = blocked.to_dict()
                     if verbose:
-                        print_case_result(case, rows[case.eval_id], limits)
+                        print_case_result(case, rows[case.eval_id], limits, retry_quality)
                     if checkpoint:
                         save_checkpoint(document(), output)
                     continue
@@ -715,7 +726,7 @@ def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
             executed += 1
             row = rows[case.eval_id]
             if verbose:
-                print_case_result(case, row, limits)
+                print_case_result(case, row, limits, retry_quality)
             if not stop_reason and row.get("interrupted"):
                 stop_reason = "interrupted"
             elif not stop_reason and _is_quota_error(row.get("error")):
@@ -737,7 +748,7 @@ def run(dataset=None, catalog=None, limit=None, only=None, delay_s=None,
             active["attempts"][-1].update(finished_at=_now(), result=copy.deepcopy(
                 {key: value for key, value in active.items() if key != "attempts"}))
             if verbose:
-                print_case_result(case_map[active["eval_id"]], active, limits)
+                print_case_result(case_map[active["eval_id"]], active, limits, retry_quality)
         logger.exception("Evaluation paused; previous case results are preserved")
     progress.update(phase="stopped" if stop_reason else "finished", case_id=None,
                     updated_at=_now())

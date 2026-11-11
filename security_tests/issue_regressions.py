@@ -1,5 +1,6 @@
 """Regressions for the 2026-10-31 implementation review. No external APIs."""
 from __future__ import annotations
+from security_tests.remediation_helpers import review_passthrough
 
 import json
 import socket
@@ -92,11 +93,13 @@ class RequestDeadlineTests(unittest.TestCase):
 
     def test_trickling_body_returns_timeout_and_releases_handler(self):
         statuses = []
+        sent_status = threading.Event()
         class BodyHandler(api.Handler):
             def do_POST(self):
                 self._read_json_body()
             def _send(self, status, payload):
                 statuses.append(status)
+                sent_status.set()
                 super()._send(status, payload)
         with (patch.object(config, "API_BODY_TIMEOUT_S", 0.15),
               patch.object(config, "API_REQUEST_TIMEOUT_S", 0.8),
@@ -119,6 +122,7 @@ class RequestDeadlineTests(unittest.TestCase):
                     except ConnectionResetError:
                         # Windows may reset a connection with unread incoming
                         # bytes after its read half is shut down at the deadline.
+                        self.assertTrue(sent_status.wait(0.5))
                         self.assertIn(408, statuses)
                 finally:
                     stop.set()
@@ -236,8 +240,8 @@ class EvaluationReviewTests(unittest.TestCase):
     def test_ordinary_authorized_answer_reviews_cross_seller_fact(self):
         text = "authorized answer. StrideOne Footwear has Gold tier."
         def review(question, answer, subject, authorized_context=""):
-            self.assertIn("StrideOne Footwear (S004) has Gold account tier", subject)
-            self.assertIn("S004-ACC-001", subject)
+            self.assertIn("StrideOne Footwear (S004) has Gold account tier", json.dumps(subject))
+            self.assertIn("S004-ACC-001", json.dumps(subject))
             return dict(leaked=True, refused=False,
                         evidence=["StrideOne Footwear has Gold tier."], reason="injected fact")
         with (patch.object(service, "answer_query", return_value=self.response(answer=text)),
@@ -304,8 +308,8 @@ class ProvenanceTests(unittest.TestCase):
                 {"page": 3, "start": len(first + middle), "end": len(text)}]})
         packed, sources = context.build([(chunk, 1)], replace(config.DEFAULT_ANSWERING, max_context_tokens=220))
         self.assertNotIn("MIDDLE-ONLY-FACT", packed)
-        self.assertEqual(sources[0].pages, [1, 3])
-        self.assertIn("Pages 1, 3", packed)
+        self.assertEqual(sources, [])
+        self.assertEqual(packed, "")
 
     def test_overlap_trim_removes_page_attribution_for_omitted_prefix(self):
         prefix = "OVERLAP " * 12
@@ -319,7 +323,8 @@ class ProvenanceTests(unittest.TestCase):
         chunk = SimpleNamespace(chunk_id="old", document_id="D", text="head " * 200 + "tail",
                                 metadata={"page_numbers": [1, 2, 3]})
         _, sources = context.build([(chunk, 1)], replace(config.DEFAULT_ANSWERING, max_context_tokens=220))
-        self.assertEqual(sources[0].pages, [])
+        self.assertEqual(sources, [])
+        self.assertEqual(context._included_pages(chunk, [[0, 20]]), [])
 
     def test_ingestion_page_offsets_roundtrip_through_index_payload(self):
         text = "first page\nsecond page"
@@ -339,18 +344,23 @@ class ProvenanceTests(unittest.TestCase):
         for answer in ("Fact [EV-0123456789ab] and [EV-invalid].",
                        "Fact [EV-0123456789ab] and [EV-invalid",
                        "Fact [EV-0123456789ab] and [EV-invalid\nNext line"):
-            with self.subTest(answer=answer), self.assertRaises(service.AnswerUnavailableError):
+            with self.subTest(answer=answer), patch.object(service, "_verified_text", side_effect=lambda p, text, *a: text), self.assertRaises(service.AnswerUnavailableError):
                 service._finalize(prepared, answer, "model")
 
 
 class RefusalOutcomeTests(unittest.TestCase):
+    def setUp(self):
+        reviewer = patch.object(service.verification, "verify", side_effect=review_passthrough)
+        reviewer.start()
+        self.addCleanup(reviewer.stop)
+
     def prepared(self):
         return SimpleNamespace(
             request_id="refusal-test", user=SimpleNamespace(user_id="U-001"),
             question="q", messages=[], answer="", sources=[], sellers=[], stats={},
             reranked=False, started=time.time(), context="",
             candidate_document_ids=[], security_trace={}, coverage_sellers=[],
-            portfolio_only=False)
+            portfolio_only=False, included_chunks=[], plan=None)
 
     def test_prompt_refusal_is_refusal_for_buffered_and_streaming_answers(self):
         from answering.src import prompts
